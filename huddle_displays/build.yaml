@@ -1,0 +1,11 @@
+---
+# Tells the Supervisor which base image to build FROM per architecture.
+# Was previously optional (Supervisor had a fallback default) but since
+# Supervisor 2026.04.0 that fallback was removed — without this file,
+# $BUILD_FROM in the Dockerfile is blank and the build fails outright with
+# "base name ($BUILD_FROM) should not be blank". Found by actually trying to
+# install this add-on against a current Supervisor (2026-09-16).
+build_from:
+  aarch64: ghcr.io/home-assistant/aarch64-base:3.24
+  amd64: ghcr.io/home-assistant/amd64-base:3.24
+  armv7: ghcr.io/home-assistant/armv7-base:3.24
