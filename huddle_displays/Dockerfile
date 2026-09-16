@@ -9,7 +9,12 @@ RUN apk add --no-cache python3 py3-pip jpeg-dev zlib-dev freetype-dev \
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt /tmp/
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# build-base/musl-dev/python3-dev are only needed to compile Pillow's wheel
+# (no prebuilt wheel for this arch/musl-libc combo) - installed as a virtual
+# package and removed right after so they don't bloat the final image.
+RUN apk add --no-cache --virtual .build-deps build-base musl-dev python3-dev \
+ && pip install --no-cache-dir -r /tmp/requirements.txt \
+ && apk del .build-deps
 
 # Inter is the design font. Alpine has no fonts-inter package, so pull the
 # release straight from GitHub and keep only the weights the renderer uses.
