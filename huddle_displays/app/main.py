@@ -207,8 +207,8 @@ font:14px/1.5 system-ui,sans-serif;color:#999}}
 img{{image-rendering:pixelated;width:800px;border:14px solid #d8d4cc;border-radius:4px;
 box-shadow:0 8px 40px #0008}}</style>
 <div><img src="{base}/image/{room_id}.png?t=0" id=p>
-<p style="text-align:center">{room_id} &middot; reloads every 15 s</p></div>
-<script>setInterval(()=>document.getElementById('p').src='{base}/image/{room_id}.png?t='+Date.now(),15000)</script>""",
+<p style="text-align:center">{room_id} &middot; reloads every 60 s</p></div>
+<script>setInterval(()=>document.getElementById('p').src='{base}/image/{room_id}.png?t='+Date.now(),60000)</script>""",
         mimetype="text/html")
 
 

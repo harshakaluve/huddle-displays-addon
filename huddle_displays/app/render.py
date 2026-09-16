@@ -29,6 +29,23 @@ def _text_w(draw: ImageDraw.ImageDraw, s: str, f) -> int:
     return int(draw.textlength(s, font=f))
 
 
+def _t12(dt) -> str:
+    """12-hour clock, no leading zero: '6:46 PM' not '06:46 PM'."""
+    return dt.strftime("%I:%M %p").lstrip("0")
+
+
+def _h12(dt) -> str:
+    """Compact on-the-hour tick for the timeline ruler: '9a', '11p', '12p'."""
+    h = dt.hour % 12 or 12
+    return f"{h}{'a' if dt.hour < 12 else 'p'}"
+
+
+def _t12_compact(dt) -> str:
+    """Compact stamp for tight spaces (in-block timeline labels): '2:30p'."""
+    h = dt.hour % 12 or 12
+    return f"{h}:{dt.minute:02d}{'a' if dt.hour < 12 else 'p'}"
+
+
 def fit_text(draw, s: str, weight: str, max_w: int, start: int, min_size: int) -> int:
     """Largest size in [min_size, start] at which s fits on one line."""
     size = start
@@ -127,9 +144,9 @@ def draw_header(img, draw, view: RoomView, logo: Optional[Image.Image]):
     f_date = font("medium", 21)
     draw.text((CONTENT_R, 14), date_s, font=f_date, fill=WHITE, anchor="ra")
 
-    refresh_s = f"Updated {d:%H:%M}"
+    refresh_s = f"Updated {_t12(d)}"
     if view.stale:
-        refresh_s = f"Stale - last sync {view.stale_since:%H:%M}" if view.stale_since else "Stale data"
+        refresh_s = f"Stale - last sync {_t12(view.stale_since)}" if view.stale_since else "Stale data"
     f_ref = font("regular", 15)
     draw.text((CONTENT_R, 45), refresh_s, font=f_ref, fill=WHITE, anchor="ra")
 
@@ -169,7 +186,7 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
     y += 38
 
     # time + duration, baseline-aligned
-    t_s = f"{ev.start:%H:%M} – {ev.end:%H:%M}"
+    t_s = f"{_t12(ev.start)} – {_t12(ev.end)}"
     f_t = font("semibold", 30)
     draw.text((CONTENT_L, y), t_s, font=f_t, fill=BLACK)
     draw.text((CONTENT_L + _text_w(draw, t_s, f_t) + 14, y + 6),
@@ -180,7 +197,7 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
     nxt = view.next_event
     if nxt:
         f_n = font("regular", 21)
-        nxt_s = f"Next  {nxt.start:%H:%M}  ·  {nxt.display_subject(redact)}"
+        nxt_s = f"Next  {_t12(nxt.start)}  ·  {nxt.display_subject(redact)}"
         for ln in wrap(draw, nxt_s, f_n, CONTENT_R - CONTENT_L, 1):
             draw.text((CONTENT_L, y), ln, font=f_n, fill=BLACK)
 
@@ -219,7 +236,7 @@ def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
                   font=font("semibold", 30), fill=BLACK)
         y += 42
     else:
-        draw.text((CONTENT_L, y), f"Free until {until:%H:%M}",
+        draw.text((CONTENT_L, y), f"Free until {_t12(until)}",
                   font=font("semibold", 32), fill=BLACK)
         y += 44
         gap = humanise(until - view.now)
@@ -263,7 +280,7 @@ def draw_unknown(img, draw, view: RoomView, qr: Optional[Image.Image]):
               font=font("semibold", 30), fill=BLACK)
     y += 42
 
-    tail = f"Last synced {view.stale_since:%H:%M}" if view.stale_since else "No sync since power-on"
+    tail = f"Last synced {_t12(view.stale_since)}" if view.stale_since else "No sync since power-on"
     f_t = font("regular", 21)
     for ln in wrap(draw, f"{tail} · check Outlook before using this room",
                    f_t, text_r - CONTENT_L, 2):
@@ -293,7 +310,7 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
     def pos(t: datetime) -> float:
         return x0 + span_w * min(1.0, max(0.0, (t - d0).total_seconds() / total))
 
-    label = f"TODAY   {day_start:%H:%M}–{day_end:%H:%M}"
+    label = f"TODAY   {_t12(day_start)}–{_t12(day_end)}"
     tracked(draw, (x0, TIMELINE_TOP + 9), label, font("bold", 13), BLACK, tracking=2)
 
     if view.data_unknown:
@@ -323,7 +340,7 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
         draw.rectangle([ex0, bar_y0, ex1, bar_y1], fill=BLACK)
         # label only if it fits and the now-marker won't sit on top of it
         if ex1 - ex0 >= 58 and not (ex0 - 4 <= now_x <= ex0 + 58):
-            draw.text((ex0 + 8, bar_y0 + 9), f"{ev.start:%H:%M}",
+            draw.text((ex0 + 8, bar_y0 + 9), _t12_compact(ev.start),
                       font=font("semibold", 14), fill=WHITE)
 
     # now marker: flag above the bar + full-height rule through it
@@ -338,7 +355,7 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
         hx = pos(hour)
         draw.line([(hx, bar_y1 + 2), (hx, bar_y1 + 6)], fill=BLACK, width=1)
         anchor = "la" if hour == d0 else ("ra" if hour == d1 else "ma")
-        draw.text((hx, bar_y1 + 9), f"{hour:%H}", font=f_tick, fill=BLACK, anchor=anchor)
+        draw.text((hx, bar_y1 + 9), _h12(hour), font=f_tick, fill=BLACK, anchor=anchor)
         hour += timedelta(hours=step)
 
 
