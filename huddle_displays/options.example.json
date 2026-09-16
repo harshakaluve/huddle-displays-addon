@@ -1,0 +1,78 @@
+{
+  "timezone": "Asia/Kolkata",
+  "refresh_minutes": [
+    14,
+    29,
+    44,
+    59
+  ],
+  "active_days": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "lead_seconds": 25,
+  "weekend_nap_seconds": 21600,
+  "day_start": "09:00",
+  "day_end": "21:00",
+  "redact_private": true,
+  "organiser_source": "graph",
+  "image_format": "bmp",
+  "graph_tenant_id": "PASTE_FROM_room-dashboard/server/.env_TENANT_ID",
+  "graph_client_id": "PASTE_FROM_room-dashboard/server/.env_CLIENT_ID",
+  "graph_client_secret": "PASTE_FROM_room-dashboard/server/.env_CLIENT_SECRET",
+  "booking_url_template": "https://huddle.lwyd.in/?room={room_id}",
+  "logo_path": "/share/huddle/logo.png",
+  "rooms": [
+    {
+      "room_id": "main-conference",
+      "name": "Main Conference",
+      "calendar_entity": "calendar.room_main_conference",
+      "mailbox": "MainConferenceRoom1ea134ea1770977417432@lwyd.in",
+      "panel_id": "panel-01",
+      "capacity": 9
+    },
+    {
+      "room_id": "partners-mini",
+      "name": "Partners Mini Conference",
+      "calendar_entity": "calendar.room_partners_mini",
+      "mailbox": "MiniConferenceRoom09dc65201770977561411@lwyd.in",
+      "panel_id": "panel-02",
+      "capacity": 4
+    },
+    {
+      "room_id": "cs-conference",
+      "name": "CS Conference",
+      "calendar_entity": "calendar.room_cs_conference",
+      "mailbox": "G186ccb0852da457484c39276883186f3@lwyd.in",
+      "panel_id": "panel-03",
+      "capacity": 9
+    },
+    {
+      "room_id": "designers-conference",
+      "name": "Designers Conference",
+      "calendar_entity": "calendar.room_designers_conference",
+      "mailbox": "DesingersConferenceRoom3f7b64381770977851955@lwyd.in",
+      "panel_id": "panel-04",
+      "capacity": 4
+    },
+    {
+      "room_id": "pod-1",
+      "name": "One Person Pod 1",
+      "calendar_entity": "calendar.room_pod_1",
+      "mailbox": "OnePersonPod1d3bb96261770977911290@lwyd.in",
+      "panel_id": "panel-05",
+      "capacity": 1
+    },
+    {
+      "room_id": "pod-2",
+      "name": "One Person Pod 2",
+      "calendar_entity": "calendar.room_pod_2",
+      "mailbox": "OnePersonPod24581d57e1770977941487@lwyd.in",
+      "panel_id": "panel-06",
+      "capacity": 1
+    }
+  ]
+}

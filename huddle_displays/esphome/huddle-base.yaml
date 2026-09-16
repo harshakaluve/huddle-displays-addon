@@ -1,0 +1,245 @@
+# ---------------------------------------------------------------------------
+# Shared package for every XIAO 7.5" ePaper room panel.
+# Per-room files just set substitutions and !include this.
+#
+# Design note: this panel has no clock and never runs SNTP. Every wake it asks
+# the renderer "what now?" and is told exactly how long to sleep. Alignment to
+# :14/:29/:44/:59 is therefore re-derived server-side on every cycle, so RTC
+# drift never accumulates, and the schedule is changed in one add-on option
+# instead of reflashing ten panels.
+# ---------------------------------------------------------------------------
+
+substitutions:
+  # The PANEL id -- the sticker on the back of this physical unit, e.g.
+  # "panel-03". NOT the room. Which door this panel hangs on is a line in the
+  # add-on options, so when it comes back off the charging dock on the wrong
+  # door you fix it in config instead of reflashing.
+  panel_id: "REQUIRED"
+  friendly_name: "REQUIRED"     # the room it normally lives on, for the OTA list
+  static_ip: "REQUIRED"
+  renderer: "http://10.0.0.5:8099"
+  gateway: "10.0.0.1"
+  subnet: "255.255.255.0"
+  dns1: "10.0.0.1"
+  # Seconds held after the redraw is issued, to let the panel finish its
+  # ~4-5 s full refresh before the rails drop. Lower = better battery.
+  refresh_settle: "8s"
+
+esphome:
+  name: huddle-${panel_id}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: cycle
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: esp32c3
+  framework:
+    # esp-idf leaves noticeably more free heap than arduino, which matters:
+    # the display buffer (48 KB) and the decoded image (48 KB) are both
+    # resident at draw time on a chip with no PSRAM.
+    type: esp-idf
+
+logger:
+  baud_rate: 0                  # no UART. Saves power; logs still go over OTA.
+  level: INFO
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# Deliberately NO `api:` block.
+#
+# The native API keeps a socket open to HA and adds ~1 s to every wake, for a
+# device that is asleep 99% of the time and would show as "unavailable" in HA
+# anyway. Telemetry is pushed to HA over REST by the renderer instead, and
+# ESPHome-dashboard OTA works fine without it.
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true            # skip the scan; go straight to the stored AP
+  power_save_mode: none         # we're only awake for seconds
+  manual_ip:                    # skips DHCP: ~1-2 s less awake time per cycle
+    static_ip: ${static_ip}
+    gateway: ${gateway}
+    subnet: ${subnet}
+    dns1: ${dns1}
+  on_connect:
+    - logger.log: "wifi up"
+
+globals:
+  - id: sleep_s
+    type: int
+    restore_value: false
+    initial_value: "900"        # safe fallback if the renderer never answers
+  - id: do_render
+    type: bool
+    restore_value: false
+    initial_value: "true"
+  - id: hold_awake
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: batt_pct
+    type: float
+    restore_value: false
+    initial_value: "-1"         # -1 = no fuel gauge fitted; renderer ignores it
+
+deep_sleep:
+  id: ds
+  # Safety net only. If a cycle wedges (renderer down mid-request, DNS hang),
+  # run_duration fires and the panel sleeps 15 min rather than flattening the
+  # battery awake. The normal path always calls deep_sleep.enter explicitly.
+  run_duration: 150s
+  sleep_duration: 15min
+
+spi:
+  clk_pin: GPIO8
+  mosi_pin: GPIO10
+
+http_request:
+  useragent: huddle-${panel_id}
+  timeout: 12s
+  verify_ssl: false
+
+online_image:
+  - id: screen
+    url: "${renderer}/image/${panel_id}.bmp"
+    format: BMP
+    type: BINARY                # 1 bpp -- 48 000 bytes for 800x480
+    buffer_size: 4096           # small download window; BMP needs no big inflate
+    on_download_finished:
+      then:
+        - logger.log: "image in, drawing"
+        - component.update: epd
+        - delay: ${refresh_settle}
+        - script.execute: sleep_now
+    on_error:
+      then:
+        - logger.log: "image download failed - keeping the previous screen"
+        - script.execute: sleep_now
+
+display:
+  - platform: waveshare_epaper
+    id: epd
+    model: 7.50inV2
+    cs_pin: GPIO3
+    dc_pin: GPIO5
+    reset_pin: GPIO2
+    busy_pin:
+      number: GPIO4
+      inverted: true
+    update_interval: never      # we drive it by hand, once per wake
+    lambda: |-
+      it.image(0, 0, id(screen));
+
+sensor:
+  # Internal only -- it rides along on the /plan request rather than being its
+  # own HA entity, so there's no API connection to pay for.
+  - platform: wifi_signal
+    id: rssi
+    internal: true
+    update_interval: 10s
+
+script:
+  # ----- the whole life of one wake ------------------------------------
+  - id: cycle
+    mode: single
+    then:
+      - wait_until:
+          condition:
+            wifi.connected:
+          timeout: 30s
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+            - logger.log: "no wifi - retrying in 5 min"
+            - deep_sleep.enter:
+                id: ds
+                sleep_duration: 5min
+
+      - component.update: rssi
+      - http_request.get:
+          url: !lambda |-
+            // NB: no Arduino WiFi.RSSI() here -- this builds under esp-idf,
+            // so the signal comes from the wifi_signal sensor above.
+            float r = id(rssi).state;
+            char buf[160];
+            snprintf(buf, sizeof(buf), "%s/plan/%s?soc=%.1f&rssi=%d",
+                     "${renderer}", "${panel_id}", id(batt_pct),
+                     isnan(r) ? 0 : (int) r);
+            return std::string(buf);
+          capture_response: true
+          on_response:
+            then:
+              - lambda: |-
+                  json::parse_json(body, [](JsonObject root) -> bool {
+                    id(sleep_s)    = root["sleep_s"]    | 900;
+                    id(do_render)  = root["render"]     | true;
+                    id(hold_awake) = root["stay_awake"] | false;
+                    ESP_LOGI("huddle", "plan: sleep=%ds render=%d hold=%d",
+                             id(sleep_s), id(do_render), id(hold_awake));
+                    return true;
+                  });
+              - if:
+                  condition:
+                    lambda: "return id(hold_awake);"
+                  then:
+                    # OTA window: stay up until someone flashes or releases it
+                    - logger.log: "holding awake for OTA"
+                    - deep_sleep.prevent: ds
+                  else:
+                    - if:
+                        condition:
+                          lambda: "return id(do_render);"
+                        then:
+                          # kicks on_download_finished, which draws and sleeps
+                          - component.update: screen
+                        else:
+                          # weekend nap: re-check later without touching e-paper
+                          - logger.log: "no redraw needed"
+                          - script.execute: sleep_now
+          on_error:
+            then:
+              - logger.log: "plan request failed - falling back to 15 min"
+              - script.execute: sleep_now
+
+  - id: sleep_now
+    mode: single
+    then:
+      - deep_sleep.enter:
+          id: ds
+          sleep_duration: !lambda "return (uint32_t) id(sleep_s) * 1000;"
+
+# ---------------------------------------------------------------------------
+# OPTIONAL: real state-of-charge.
+#
+# The panel ships with no battery monitoring at all, and on the ESP32-C3 you
+# cannot add it with a resistor divider: ADC1 is GPIO0-GPIO4, and this panel
+# already uses GPIO2 (reset), GPIO3 (CS) and GPIO4 (busy). ADC2 is unusable
+# while WiFi is on. So the only workable route is an I2C fuel gauge on the two
+# free pins. A MAX17048 breakout across the battery, ~10 minutes per panel.
+#
+# With ten battery-only panels you will want this -- otherwise the first sign
+# of a flat battery is a room screen frozen on last Tuesday.
+# ---------------------------------------------------------------------------
+# i2c:
+#   sda: GPIO6
+#   scl: GPIO7
+#   frequency: 100kHz
+#
+# sensor:
+#   - platform: max17043
+#     battery_level:
+#       id: fuel
+#       on_value:
+#         then:
+#           - lambda: "id(batt_pct) = x;"
+#     battery_voltage:
+#       id: fuel_v
+#     update_interval: 30s

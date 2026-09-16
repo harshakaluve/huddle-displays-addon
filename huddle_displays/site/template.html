@@ -1,0 +1,450 @@
+<title>Huddle Room Panels</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#E9ECEF; --surface:#FFFFFF; --surface-2:#F4F6F8;
+    --ink:#12171B; --ink-2:#4E5A63; --ink-3:#7C8792;
+    --rule:#D3DADF; --rule-2:#BFC8CF;
+    --signal:#0D5B6B; --signal-soft:#DCEDF0;
+    --alert:#8C3512; --alert-soft:#F7E7DF;
+    --bezel:#D9D5CC; --bezel-edge:#BEB9AE;
+    --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --maxw:70ch;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#101417; --surface:#171D21; --surface-2:#1E252A;
+      --ink:#E4EAEE; --ink-2:#A3AFB8; --ink-3:#77838C;
+      --rule:#283137; --rule-2:#39444B;
+      --signal:#5FB8C9; --signal-soft:#132B31;
+      --alert:#E08356; --alert-soft:#2B1912;
+      --bezel:#2A2E31; --bezel-edge:#3A3F43;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#101417; --surface:#171D21; --surface-2:#1E252A;
+    --ink:#E4EAEE; --ink-2:#A3AFB8; --ink-3:#77838C;
+    --rule:#283137; --rule-2:#39444B;
+    --signal:#5FB8C9; --signal-soft:#132B31;
+    --alert:#E08356; --alert-soft:#2B1912;
+    --bezel:#2A2E31; --bezel-edge:#3A3F43;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding-inline:20px; padding-block:0 96px}
+  .col{max-width:var(--maxw)}
+
+  h1,h2,h3{text-wrap:balance; margin:0}
+  h1{font-size:clamp(30px,5.2vw,46px); font-weight:700; letter-spacing:-.025em; line-height:1.08}
+  h2{font-size:clamp(21px,3vw,26px); font-weight:600; letter-spacing:-.015em}
+  h3{font-size:16px; font-weight:600; letter-spacing:-.005em}
+  p{margin:0}
+  a{color:var(--signal); text-decoration-thickness:1px; text-underline-offset:2px}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; font-weight:500;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3);
+  }
+
+  /* ---- masthead ---- */
+  header.top{
+    border-bottom:1px solid var(--rule);
+    padding-block:44px 0;
+    display:flex; flex-direction:column; gap:22px;
+  }
+  .lede{font-size:clamp(17px,2.2vw,19px); color:var(--ink-2); max-width:58ch}
+  .spec{
+    display:flex; flex-wrap:wrap; gap:0;
+    border-top:1px solid var(--rule); margin-top:6px;
+  }
+  .spec div{
+    flex:1 1 128px; padding:14px 18px 16px 0; border-right:1px solid var(--rule);
+  }
+  .spec div:last-child{border-right:0}
+  .spec dt{font-family:var(--mono); font-size:10.5px; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+  .spec dd{margin:0; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums}
+
+  /* ---- sections ---- */
+  section{padding-block:52px; border-bottom:1px solid var(--rule)}
+  section:last-of-type{border-bottom:0}
+  .sec-head{display:flex; flex-direction:column; gap:8px; margin-bottom:26px}
+  .stack{display:flex; flex-direction:column; gap:18px}
+
+  /* ---- the two genuine blockers ---- */
+  .blocker{
+    border-left:3px solid var(--alert); background:var(--alert-soft);
+    padding:18px 20px; display:flex; flex-direction:column; gap:10px;
+  }
+  .blocker .eyebrow{color:var(--alert)}
+  .blocker strong{color:var(--ink)}
+
+  .note{
+    border-left:3px solid var(--rule-2); padding:4px 0 4px 18px;
+    color:var(--ink-2); font-size:15px;
+  }
+
+  /* ---- code ---- */
+  pre{
+    margin:0; background:var(--surface); border:1px solid var(--rule);
+    padding:16px 18px; overflow-x:auto;
+    font-family:var(--mono); font-size:13px; line-height:1.65; color:var(--ink);
+  }
+  code{font-family:var(--mono); font-size:.92em}
+  p code,li code,td code{background:var(--surface-2); padding:1px 5px; border:1px solid var(--rule)}
+  .cmt{color:var(--ink-3)}
+
+  /* ---- panel mockups: framed like the physical object ---- */
+  .screens{display:flex; flex-direction:column; gap:34px}
+  .screen{display:flex; flex-direction:column; gap:12px}
+  .bezel{
+    background:var(--bezel); border:1px solid var(--bezel-edge);
+    border-radius:5px; padding:13px; max-width:100%;
+    box-shadow:0 1px 2px rgba(0,0,0,.14), 0 10px 26px rgba(0,0,0,.10);
+  }
+  .bezel img{display:block; width:100%; height:auto; image-rendering:pixelated;
+    background:#fff; border:1px solid var(--bezel-edge)}
+  .cap{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline}
+  .cap h3{flex:0 0 auto}
+  .cap p{color:var(--ink-2); font-size:14.5px; flex:1 1 240px; min-width:0}
+  .when{font-family:var(--mono); font-size:11px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--ink-3);
+    border:1px solid var(--rule-2); padding:2px 7px}
+
+  /* ---- tables ---- */
+  .tbl{overflow-x:auto; border:1px solid var(--rule); background:var(--surface)}
+  table{border-collapse:collapse; width:100%; min-width:460px}
+  th,td{text-align:left; padding:11px 16px; border-bottom:1px solid var(--rule); font-size:14.5px}
+  th{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--ink-3); font-weight:500}
+  tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap}
+  .bar{display:block; height:5px; background:var(--signal); margin-top:6px; opacity:.85}
+
+  /* ---- install steps: order genuinely matters here ---- */
+  ol.steps{list-style:none; margin:0; padding:0; counter-reset:s;
+    display:flex; flex-direction:column; gap:26px}
+  ol.steps>li{counter-increment:s; display:grid;
+    grid-template-columns:30px minmax(0,1fr); gap:0 16px}
+  ol.steps>li::before{
+    content:counter(s,decimal-leading-zero);
+    font-family:var(--mono); font-size:12px; font-weight:600; color:var(--signal);
+    padding-top:3px;
+  }
+  ol.steps>li>div{display:flex; flex-direction:column; gap:10px; min-width:0}
+
+  ul.plain{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:8px}
+  ul.plain li{padding-left:2px}
+
+  footer{padding-block:40px; color:var(--ink-3); font-size:14px}
+
+  @media (max-width:560px){
+    .spec div{flex:1 1 50%; border-right:0}
+    .bezel{padding:8px; border-radius:4px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+  :focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <div class="stack">
+    <span class="eyebrow">LWYD &middot; Meeting room displays</span>
+    <h1>Huddle Room Panels</h1>
+    <p class="lede">Ten XIAO 7.5&Prime; ePaper panels reading Microsoft&nbsp;365 room mailboxes
+      through Home Assistant. Battery powered, deep sleep, refreshing on the clock and
+      asleep through the weekend.</p>
+  </div>
+  <dl class="spec">
+    <div><dt>Panel</dt><dd>800 &times; 480, 1-bit</dd></div>
+    <div><dt>MCU</dt><dd>XIAO ESP32-C3</dd></div>
+    <div><dt>Refresh</dt><dd>:14 :29 :44 :59</dd></div>
+    <div><dt>Awake</dt><dd>~8 s per cycle</dd></div>
+    <div><dt>Recharge</dt><dd>Weekly dock</dd></div>
+  </dl>
+</header>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Architecture</span>
+    <h2>The panel has no clock</h2>
+  </div>
+  <div class="col stack">
+    <p>Every wake, the panel asks the add-on &ldquo;what now?&rdquo; and is told exactly how many
+      seconds to sleep. It never runs SNTP. Three things follow, and they are the reason
+      the design is shaped this way:</p>
+    <ul class="plain">
+      <li><strong>Alignment is recomputed server-side every cycle</strong>, so ESP32 RTC drift
+        of 1&ndash;2% never accumulates. A panel is never more than one cycle out of step.</li>
+      <li><strong>No SNTP round trip</strong> &mdash; about 1.5&nbsp;s less awake time per cycle,
+        which is real battery on a device that wakes 96 times a day.</li>
+      <li><strong>The schedule, day window, privacy rule and layout all live in one add-on
+        option</strong> &mdash; not in ten firmware flashes.</li>
+    </ul>
+    <p>The firmware is deliberately dumb: fetch an image, dump it to the panel, ask how long
+      to sleep, sleep. All the thinking is server-side, where iterating takes two seconds
+      in a browser instead of ten OTA flashes.</p>
+  </div>
+  <div style="margin-top:26px"><pre>Outlook room mailbox
+     │  MS365-Calendar (HACS)
+     ▼
+Home Assistant ─────────────┐
+     │  calendar REST        │  state push (battery, RSSI)
+     ▼                       │
+"Huddle Displays" add-on ────┘
+  renders 800×480 1-bit BMP per room
+     ▲            │
+     │ /plan      │ /image
+     │            ▼
+  XIAO ESP32-C3 panel  ·  wake → ask → draw → sleep</pre></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Do this first</span>
+    <h2>Two Exchange settings decide whether this works at all</h2>
+  </div>
+  <div class="col stack">
+    <div class="blocker">
+      <span class="eyebrow">Blocker</span>
+      <p>Exchange creates room mailboxes with <code>DeleteSubject $true</code> and
+        <code>AddOrganizerToSubject $true</code>. The room's copy of every booking has its
+        <strong>subject thrown away and replaced with the organiser's name</strong>. Your panel
+        would show &ldquo;Sanjana Taneja&rdquo; where the meeting title belongs, and no amount of
+        code fixes it &mdash; the real subject was never written to the room calendar.</p>
+    </div>
+    <p><code>RemovePrivateProperty $false</code> is the second one: it preserves the
+      <strong>Private</strong> flag that the redaction keys off. Without it, every booking arrives
+      as <code>normal</code> sensitivity and nothing is ever hidden.</p>
+  </div>
+  <div style="margin-top:20px"><pre>Connect-ExchangeOnline
+
+<span class="cmt"># run for each of the 10 rooms</span>
+Set-CalendarProcessing -Identity "boardroom@lwyd.in" `
+  -DeleteSubject $false `
+  -AddOrganizerToSubject $false `
+  -RemovePrivateProperty $false `
+  -AddAdditionalResponse $false</pre></div>
+  <div class="col" style="margin-top:20px">
+    <p class="note">These apply to <strong>future</strong> bookings only. Exchange will not backfill
+      subjects on meetings that already exist &mdash; run it first, then let a day of bookings
+      accumulate before judging the output.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Screen states</span>
+    <h2>Four things a panel can say</h2>
+  </div>
+  <div class="screens">
+    {{SCREENS}}
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Data</span>
+    <h2>Getting &ldquo;who booked it&rdquo;</h2>
+  </div>
+  <div class="col stack">
+    <p>Home Assistant's calendar API returns summary, start, end and description &mdash; and nothing
+      else. <strong>No organiser, no sensitivity.</strong> Both features you asked for need one of
+      these:</p>
+  </div>
+  <div class="tbl" style="margin-top:20px">
+    <table>
+      <thead><tr><th>Mode</th><th>How</th><th>Setup cost</th></tr></thead>
+      <tbody>
+        <tr><td><code>graph</code><br><span style="color:var(--ink-3);font-size:13px">recommended</span></td>
+          <td>Add-on calls Graph app-only and gets <code>organizer</code> and
+            <code>sensitivity</code> as real fields</td>
+          <td>One app registration, <code>Calendars.Read</code> application permission, admin consent</td></tr>
+        <tr><td><code>ha</code></td>
+          <td>Leave <code>AddOrganizerToSubject $true</code> and parse the organiser back out of
+            the subject string</td>
+          <td>None &mdash; but the format varies by tenant, so verify against a real booking</td></tr>
+        <tr><td><code>none</code></td><td>Subject and times only</td><td>None</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col" style="margin-top:20px">
+    <p class="note">Scope the Graph registration to only the ten room mailboxes with an
+      application access policy, or the app can read every calendar in the tenant.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Timing</span>
+    <h2>Landing on the boundary, and sleeping through Saturday</h2>
+  </div>
+  <div class="col stack">
+    <p>The panel wakes 25&nbsp;seconds <em>before</em> each boundary, so by the time the ~4.5&nbsp;s
+      e-paper refresh finishes, the clock reads :14, :29, :44 or :59. The
+      &ldquo;Updated&nbsp;HH:MM&rdquo; stamp is rendered at request time, so it always tells the
+      truth about the image in front of you.</p>
+    <p><strong>Weekend sleep is chunked on purpose.</strong> One 60-hour deep sleep would drift by
+      up to an hour. Instead the panel takes six-hour naps and is told <code>render: false</code>
+      for all but the last &mdash; it wakes, asks, and goes straight back to sleep without touching
+      the e-paper, which is the expensive part of a cycle. Eight extra wakes across a weekend cost
+      about 0.4&nbsp;mAh. The final nap lands it at Monday 00:13:35, in time for the 00:14 refresh.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Power</span>
+    <h2>Battery stopped being the constraint</h2>
+  </div>
+  <div class="col stack">
+    <p>Support docks all ten every weekend, so the budget is five working days, not
+      three months. One full cycle costs about <strong>128&nbsp;&micro;Ah</strong>. Against a
+      five-day budget, worst-case 800&nbsp;&micro;A deep-sleep current:</p>
+  </div>
+  <div class="tbl" style="margin-top:20px">
+    <table>
+      <thead><tr><th>Refresh</th><th>Cycles/day</th><th>Runtime</th><th>Margin</th></tr></thead>
+      <tbody>
+        <tr><td><strong>15 min</strong> <span style="color:var(--ink-3);font-size:13px">shipped</span></td>
+          <td class="num">96</td><td class="num">~57 days</td>
+          <td class="num">11&times;<span class="bar" style="width:100%"></span></td></tr>
+        <tr><td>5 min</td><td class="num">288</td><td class="num">~32 days</td>
+          <td class="num">6.4&times;<span class="bar" style="width:58%"></span></td></tr>
+        <tr><td>2 min</td><td class="num">720</td><td class="num">~16 days</td>
+          <td class="num">3.2&times;<span class="bar" style="width:29%"></span></td></tr>
+        <tr><td>1 min</td><td class="num">1440</td><td class="num">~9 days</td>
+          <td class="num">1.8&times;<span class="bar" style="width:16%"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col stack" style="margin-top:22px">
+    <p>At 15 minutes you're using about <strong>5% of the cell each week</strong> &mdash; shallow
+      enough that it'll barely age the battery.</p>
+    <p><strong>A five-minute refresh is comfortably within budget</strong>, and it's the biggest
+      felt improvement available: a room booked two minutes ago shows up before anyone walks to
+      it. It's one option, no reflash &mdash; the panels ask the server for their schedule. The
+      only cost is twelve visible refresh flashes an hour instead of four. Shipped at 15 because
+      that's what you specified; try 5 for a week.</p>
+    <p class="note">The fuel gauge is now optional. On a fixed weekly charge you're never guessing
+      at charge state. Cheaper insurance with no soldering: alert on silence &mdash; any panel
+      that hasn't hit <code>/plan</code> in 45 minutes on a weekday is flat, crashed or off the
+      network.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Operations</span>
+    <h2>Ten identical panels coming off the wall every Friday</h2>
+  </div>
+  <div class="col stack">
+    <div class="blocker">
+      <span class="eyebrow">Risk</span>
+      <p>Over a year that's 520 hangs by people who don't know one unit from another.
+        <strong>A panel will end up on the wrong door.</strong> If the room were baked into
+        firmware, fixing it would mean a reflash.</p>
+    </div>
+    <p>So it isn't. <strong>Firmware carries the panel id; the door is a line in the add-on
+      options.</strong> A swap is a config edit, effective on the next cycle. Two more things
+      make it safe:</p>
+    <ul class="plain">
+      <li>The <strong>room name is the second-largest thing on the screen</strong>, so a
+        mis-hang is obvious to the first person who walks past.</li>
+      <li><code>tools/make_rooms.py</code> writes <code>PANEL-LABELS.txt</code> &mdash; print it,
+        stick one on the back of each unit. Support reads the label, not the screen.</li>
+    </ul>
+    <p>One instruction for the support team resolves most of what they'll ever report:
+      <strong>if a screen looks wrong or stale, press the reset button on the back.</strong>
+      It forces an immediate wake, fetch and redraw.</p>
+    <p class="note">Panels asleep on the dock still charge &mdash; the charge circuit is
+      independent of the MCU. They keep waking on schedule all Monday morning, so a panel re-hung
+      at 09:00 shows data at most 15 minutes old.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Install</span>
+    <h2>Room one, end to end</h2>
+  </div>
+  <ol class="steps">
+    <li><div>
+      <h3>Run the Exchange cmdlet on all ten rooms</h3>
+      <p>Above. Nothing downstream is correct until this is done.</p>
+    </div></li>
+    <li><div>
+      <h3>Install the add-on</h3>
+      <p>Copy the folder into <code>/addons/huddle_displays</code>, then Settings &rarr; Add-ons
+        &rarr; &#8942; &rarr; Check for updates &rarr; Local add-ons. Drop your logo at
+        <code>/share/huddle/logo.png</code>; without it the header sets a LWYD wordmark.</p>
+    </div></li>
+    <li><div>
+      <h3>Generate the ten room files</h3>
+      <pre>python3 tools/make_rooms.py rooms.csv</pre>
+      <p>Writes <code>esphome/panel-NN.yaml</code> &times;10, prints the <code>rooms:</code>
+        block to paste into the add-on options, and writes <code>PANEL-LABELS.txt</code> for the
+        back of each unit. <code>panel_id</code> is the physical unit, <code>room_id</code> is the
+        door &mdash; keeping them separate is what makes a wrong-door swap a config edit.</p>
+    </div></li>
+    <li><div>
+      <h3>Check the render before touching hardware</h3>
+      <pre>http://homeassistant.local:8099/preview/panel-01</pre>
+      <p>Live screen in a browser, reloading every 15&nbsp;s. Iterate on the layout here &mdash;
+        restarting the add-on is a two-second loop, reflashing ten panels is not.</p>
+    </div></li>
+    <li><div>
+      <h3>Flash panel-01 over USB</h3>
+      <p>Put <code>huddle-base.yaml</code> beside the per-room files, set
+        <code>wifi_ssid</code>, <code>wifi_password</code> and <code>ota_password</code> in
+        <code>secrets.yaml</code>, and flash. Everything after this is OTA.</p>
+    </div></li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Operations</span>
+    <h2>Flashing something that's asleep</h2>
+  </div>
+  <div class="col stack">
+    <p>A deep-sleeping panel ignores OTA. Hold the window open, flash, then release:</p>
+  </div>
+  <div style="margin-top:18px"><pre>curl -X POST http://homeassistant.local:8099/stay-awake/panel-01?on=1
+<span class="cmt"># at its next wake (≤15 min) the panel calls deep_sleep.prevent</span>
+<span class="cmt"># ... flash it ...</span>
+curl -X POST http://homeassistant.local:8099/stay-awake/panel-01?on=0</pre></div>
+  <div class="col" style="margin-top:20px">
+    <p class="note"><code>run_duration: 150s</code> means a wedged cycle sleeps 15 minutes rather
+      than flattening the battery awake &mdash; but it also caps the OTA window, so release and
+      re-hold if you need longer.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Still open</span>
+    <h2>Before all ten go on the wall</h2>
+  </div>
+  <div class="col">
+    <ul class="plain">
+      <li><strong>Time a real refresh</strong> and tune <code>refresh_settle</code> (default 8&nbsp;s).
+        It's pure battery &mdash; every second of over-estimate costs ~12&nbsp;&micro;Ah a cycle.</li>
+      <li><strong>Try <code>refresh_minutes</code> at 5 minutes</strong> for a week &mdash;
+        you have the budget, and it's the most noticeable upgrade available.</li>
+      <li><strong>Check <code>booking_url_template</code> resolves</strong> for your tenant, or point
+        the QR at whatever booking page you want.</li>
+      <li><strong>Confirm the Graph registration is scoped</strong> to the ten room mailboxes.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>Mockups rendered by the production renderer at full 800&times;480, 1-bit.</footer>
+</div>

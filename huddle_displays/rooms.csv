@@ -1,0 +1,7 @@
+panel_id,room_id,name,mailbox,static_ip,capacity
+panel-01,main-conference,Main Conference,MainConferenceRoom1ea134ea1770977417432@lwyd.in,10.0.0.101,9
+panel-02,partners-mini,Partners Mini Conference,MiniConferenceRoom09dc65201770977561411@lwyd.in,10.0.0.102,4
+panel-03,cs-conference,CS Conference,G186ccb0852da457484c39276883186f3@lwyd.in,10.0.0.103,9
+panel-04,designers-conference,Designers Conference,DesingersConferenceRoom3f7b64381770977851955@lwyd.in,10.0.0.104,4
+panel-05,pod-1,One Person Pod 1,OnePersonPod1d3bb96261770977911290@lwyd.in,10.0.0.105,1
+panel-06,pod-2,One Person Pod 2,OnePersonPod24581d57e1770977941487@lwyd.in,10.0.0.106,1

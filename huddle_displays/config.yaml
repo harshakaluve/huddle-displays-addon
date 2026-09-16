@@ -1,0 +1,65 @@
+name: Huddle Room Displays
+version: "1.0.0"
+slug: huddle_displays
+description: Renders 800x480 1-bit room screens for XIAO ePaper panels and tells them when to wake up
+arch: [aarch64, amd64, armv7]
+init: false
+startup: services
+boot: auto
+hassio_api: true
+homeassistant_api: true
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: The panels fetch their screen and sleep plan here
+map:
+  - share:rw
+options:
+  timezone: Asia/Kolkata
+  refresh_minutes: [14, 29, 44, 59]
+  active_days: [0, 1, 2, 3, 4]
+  lead_seconds: 25
+  weekend_nap_seconds: 21600
+  day_start: "08:00"
+  day_end: "20:00"
+  redact_private: true
+  organiser_source: graph
+  image_format: bmp
+  graph_tenant_id: ""
+  graph_client_id: ""
+  graph_client_secret: ""
+  booking_url_template: "https://outlook.office.com/book/{mailbox}"
+  logo_path: /share/huddle/logo.png
+  rooms:
+    - room_id: boardroom
+      name: Boardroom
+      calendar_entity: calendar.room_boardroom
+      mailbox: boardroom@lwyd.in
+      capacity: 12
+      panel_id: panel-01
+schema:
+  timezone: str
+  refresh_minutes:
+    - int(0,59)
+  active_days:
+    - int(0,6)
+  lead_seconds: int(5,120)
+  weekend_nap_seconds: int(600,43200)
+  day_start: match(^\d{2}:\d{2}$)
+  day_end: match(^\d{2}:\d{2}$)
+  redact_private: bool
+  organiser_source: list(graph|ha|none)
+  image_format: list(bmp|png)
+  graph_tenant_id: str?
+  graph_client_id: str?
+  graph_client_secret: password?
+  booking_url_template: str?
+  logo_path: str?
+  rooms:
+    - room_id: str
+      name: str
+      calendar_entity: str
+      mailbox: str?
+      capacity: int?
+      booking_url: str?
+      panel_id: str?
