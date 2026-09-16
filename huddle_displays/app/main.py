@@ -172,17 +172,43 @@ def image_endpoint(key: str, fmt: str):
                     headers={"Cache-Control": "no-store", "Content-Length": str(len(body))})
 
 
+@app.get("/")
+def index():
+    # Home Assistant's "Open Web UI" (ingress) button lands here.
+    base = request.headers.get("X-Ingress-Path", "")
+    rows = "".join(
+        f'<li><a href="{base}/preview/{r.room_id}">{r.name}</a></li>' for r in CFG.rooms
+    )
+    return Response(
+        f"""<!doctype html><meta charset=utf-8><title>Huddle Room Displays</title>
+<style>body{{font:15px/1.6 system-ui,sans-serif;background:#1c1c1c;color:#ddd;
+max-width:420px;margin:48px auto;padding:0 16px}}
+h1{{font-size:18px}}
+a{{color:#8ab4f8;text-decoration:none}} a:hover{{text-decoration:underline}}
+ul{{list-style:none;padding:0}} li{{padding:6px 0;border-bottom:1px solid #333}}</style>
+<h1>Huddle Room Displays</h1>
+<ul>{rows}</ul>
+<p style="opacity:.6;font-size:13px">Panels talk to /plan and /image directly; this page is just for humans.</p>""",
+        mimetype="text/html")
+
+
 @app.get("/preview/<room_id>")
 def preview(room_id: str):
+    # Ingress serves this under a per-session path prefix (e.g.
+    # /api/hassio_ingress/<token>); Supervisor tells us that prefix via this
+    # header so the absolute img/script URLs below still resolve. Direct LAN
+    # access (what the physical panels use) never sends the header, so base
+    # is "" there and nothing changes for them.
+    base = request.headers.get("X-Ingress-Path", "")
     return Response(
         f"""<!doctype html><meta charset=utf-8><title>{room_id}</title>
 <style>body{{background:#2a2a2a;display:grid;place-items:center;height:100vh;margin:0;
 font:14px/1.5 system-ui,sans-serif;color:#999}}
 img{{image-rendering:pixelated;width:800px;border:14px solid #d8d4cc;border-radius:4px;
 box-shadow:0 8px 40px #0008}}</style>
-<div><img src="/image/{room_id}.png?t=0" id=p>
+<div><img src="{base}/image/{room_id}.png?t=0" id=p>
 <p style="text-align:center">{room_id} &middot; reloads every 15 s</p></div>
-<script>setInterval(()=>document.getElementById('p').src='/image/{room_id}.png?t='+Date.now(),15000)</script>""",
+<script>setInterval(()=>document.getElementById('p').src='{base}/image/{room_id}.png?t='+Date.now(),15000)</script>""",
         mimetype="text/html")
 
 
