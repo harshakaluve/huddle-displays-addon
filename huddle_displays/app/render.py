@@ -15,6 +15,9 @@ import qrcode
 from PIL import Image, ImageDraw
 
 from .model import Event, RoomView, humanise, humanise_short
+
+# A free slot shorter than this gets the loud "only N min" treatment.
+SHORT_SLOT_MIN = 30
 from .theme import (
     BLACK, BODY_BOTTOM, BODY_TOP, CONTENT_L, CONTENT_R, H, HEADER_H,
     TEXT_THRESHOLD, TIMELINE_TOP, W, WHITE, font,
@@ -38,6 +41,33 @@ def _h12(dt) -> str:
     """Compact on-the-hour tick for the timeline ruler: '9a', '11p', '12p'."""
     h = dt.hour % 12 or 12
     return f"{h}{'a' if dt.hour < 12 else 'p'}"
+
+
+def is_closed(now: datetime, day_start: time, day_end: time, active_days: Sequence[int]) -> bool:
+    """Outside the hours people actually book (and weekends): don't say AVAILABLE."""
+    t = now.time()
+    return now.weekday() not in active_days or not (day_start <= t <= day_end)
+
+
+def next_open(now: datetime, day_start: time, active_days: Sequence[int]) -> Optional[datetime]:
+    for add in range(0, 9):
+        d = (now + timedelta(days=add)).date()
+        cand = now.replace(year=d.year, month=d.month, day=d.day, hour=day_start.hour,
+                           minute=day_start.minute, second=0, microsecond=0)
+        if cand > now and cand.weekday() in active_days:
+            return cand
+    return None
+
+
+def opens_label(now: datetime, opens: Optional[datetime]) -> str:
+    if opens is None:
+        return "Closed"
+    when = _t12(opens)
+    if opens.date() == now.date():
+        return f"Opens today at {when}"
+    if opens.date() == (now + timedelta(days=1)).date():
+        return f"Opens tomorrow at {when}"
+    return f"Opens {opens:%A} at {when}"
 
 
 def _t12_compact(dt) -> str:
@@ -138,6 +168,18 @@ def draw_header(img, draw, view: RoomView, logo: Optional[Image.Image]):
     f_name = font("semibold", size)
     draw.text((x, (HEADER_H - size) // 2 - 3), view.room.name, font=f_name, fill=WHITE)
 
+    # Seat count as an outlined tag after the name, if there's room for it.
+    if view.room.capacity:
+        tag = f"{view.room.capacity} seats"
+        f_tag = font("medium", 17)
+        tw = _text_w(draw, tag, f_tag)
+        tx = x + _text_w(draw, view.room.name, f_name) + 16
+        if tx + tw + 22 <= CONTENT_R - right_block_w + 20:
+            cy = HEADER_H // 2
+            draw.rounded_rectangle([tx, cy - 15, tx + tw + 22, cy + 15], radius=15,
+                                   outline=WHITE, width=2)
+            draw.text((tx + 11 + tw / 2, cy), tag, font=f_tag, fill=WHITE, anchor="mm")
+
     # Date + last refresh, right aligned, two lines.
     d = view.now
     date_s = f"{d:%a} {d.day} {d:%b}"
@@ -161,9 +203,14 @@ def draw_header(img, draw, view: RoomView, logo: Optional[Image.Image]):
 
 def draw_busy(img, draw, view: RoomView, redact: bool):
     ev = view.current
+    # Busy is a solid black slab with white type: readable as "taken" from the
+    # far end of a corridor, long before any text is. Free stays white.
+    draw.rectangle([0, BODY_TOP, W, BODY_BOTTOM - 1], fill=BLACK)
+    draw.line([(0, BODY_TOP), (W, BODY_TOP)], fill=WHITE, width=2)
+    ink = WHITE
     y = BODY_TOP + 22
 
-    tracked(draw, (CONTENT_L, y), "IN USE", font("black", 20), BLACK, tracking=3)
+    tracked(draw, (CONTENT_L, y), "IN USE", font("black", 20), ink, tracking=3)
     y += 34
 
     subject = ev.display_subject(redact)
@@ -174,23 +221,27 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
         f_sub = font("bold", 46)
         lines = wrap(draw, subject, f_sub, CONTENT_R - CONTENT_L, 2)
     for line in lines:
-        draw.text((CONTENT_L, y), line, font=f_sub, fill=BLACK)
+        draw.text((CONTENT_L, y), line, font=f_sub, fill=ink)
         y += int(f_sub.size * 1.16)
 
     y += 6
     organiser = ev.display_organiser(redact)
-    if organiser:
-        draw.text((CONTENT_L, y), organiser, font=font("medium", 25), fill=BLACK)
+    # Room calendars can hold the organiser's name as the subject; don't say it twice.
+    if organiser and organiser.strip().lower() != subject.strip().lower():
+        draw.text((CONTENT_L, y), organiser, font=font("medium", 25), fill=ink)
+        y += 38
     elif ev.is_private:
-        draw.text((CONTENT_L, y), "Organiser hidden", font=font("regular", 22), fill=BLACK)
-    y += 38
+        draw.text((CONTENT_L, y), "Organiser hidden", font=font("regular", 22), fill=ink)
+        y += 38
+    else:
+        y += 6
 
     # time + duration, baseline-aligned
     t_s = f"{_t12(ev.start)} – {_t12(ev.end)}"
     f_t = font("semibold", 30)
-    draw.text((CONTENT_L, y), t_s, font=f_t, fill=BLACK)
+    draw.text((CONTENT_L, y), t_s, font=f_t, fill=ink)
     draw.text((CONTENT_L + _text_w(draw, t_s, f_t) + 14, y + 6),
-              humanise(ev.duration), font=font("regular", 23), fill=BLACK)
+              humanise(ev.duration), font=font("regular", 23), fill=ink)
     y += 46
 
     # what's after this one -- the question people actually ask at the door
@@ -199,7 +250,7 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
         f_n = font("regular", 21)
         nxt_s = f"Next  {_t12(nxt.start)}  ·  {nxt.display_subject(redact)}"
         for ln in wrap(draw, nxt_s, f_n, CONTENT_R - CONTENT_L, 1):
-            draw.text((CONTENT_L, y), ln, font=f_n, fill=BLACK)
+            draw.text((CONTENT_L, y), ln, font=f_n, fill=ink)
 
     # progress bar pinned to the bottom of the body band
     bar_y = BODY_BOTTOM - 38
@@ -208,11 +259,11 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
     frac = min(1.0, max(0.0, frac))
 
     draw.text((CONTENT_R, bar_y - 25), f"{humanise_short(remaining)} left",
-              font=font("semibold", 21), fill=BLACK, anchor="ra")
-    draw.rectangle([CONTENT_L, bar_y, CONTENT_R, bar_y + 12], outline=BLACK, width=2)
+              font=font("semibold", 21), fill=ink, anchor="ra")
+    draw.rectangle([CONTENT_L, bar_y, CONTENT_R, bar_y + 12], outline=ink, width=2)
     fill_w = int((CONTENT_R - CONTENT_L) * frac)
     if fill_w > 3:
-        draw.rectangle([CONTENT_L, bar_y, CONTENT_L + fill_w, bar_y + 12], fill=BLACK)
+        draw.rectangle([CONTENT_L, bar_y, CONTENT_L + fill_w, bar_y + 12], fill=ink)
 
 
 # --------------------------------------------------------------------------
@@ -236,17 +287,58 @@ def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
                   font=font("semibold", 30), fill=BLACK)
         y += 42
     else:
-        draw.text((CONTENT_L, y), f"Free until {_t12(until)}",
-                  font=font("semibold", 32), fill=BLACK)
-        y += 44
-        gap = humanise(until - view.now)
         nxt = view.next_event
-        line = f"{gap}  ·  then {nxt.display_subject(True)}" if nxt else gap
         f = font("regular", 22)
-        lines = wrap(draw, line, f, text_r - CONTENT_L, 2)
-        for ln in lines:
-            draw.text((CONTENT_L, y), ln, font=f, fill=BLACK)
-            y += 28
+        left = until - view.now
+        if left < timedelta(minutes=SHORT_SLOT_MIN):
+            # a short gap gets a loud pill so nobody starts a long meeting in it
+            msg = f"Free for {humanise(left)} only"
+            f_pill = font("semibold", 30)
+            pw = _text_w(draw, msg, f_pill)
+            draw.rounded_rectangle([CONTENT_L, y - 4, CONTENT_L + pw + 28, y + 44],
+                                   radius=10, fill=BLACK)
+            draw.text((CONTENT_L + 14, y + 1), msg, font=f_pill, fill=WHITE)
+            y += 62
+        else:
+            draw.text((CONTENT_L, y), f"Free until {_t12(until)}",
+                      font=font("semibold", 34), fill=BLACK)
+            y += 46
+            draw.text((CONTENT_L, y), f"{humanise(left)} to go", font=font("medium", 22), fill=BLACK)
+            y += 32
+        if nxt:
+            # a short rule ties the "up next" line to the booking it describes
+            draw.line([(CONTENT_L, y + 2), (CONTENT_L, y + 50)], fill=BLACK, width=3)
+            who = f"Up next  {_t12(nxt.start)} – {_t12(nxt.end)}"
+            draw.text((CONTENT_L + 14, y), who, font=font("medium", 20), fill=BLACK)
+            subj = nxt.display_subject(True)
+            lines = wrap(draw, subj, f, text_r - CONTENT_L - 14, 1)
+            if lines:
+                draw.text((CONTENT_L + 14, y + 26), lines[0], font=f, fill=BLACK)
+
+    if qr is not None:
+        qx = CONTENT_R - qr_w
+        qy = BODY_TOP + 34
+        img.paste(qr.resize((qr_w, qr_w), Image.NEAREST), (qx, qy))
+        draw.text((qx + qr_w // 2, qy + qr_w + 10), "Scan to book",
+                  font=font("semibold", 17), fill=BLACK, anchor="ma")
+
+
+# --------------------------------------------------------------------------
+# body - closed
+# --------------------------------------------------------------------------
+
+def draw_closed(img, draw, view: RoomView, qr: Optional[Image.Image], opens: Optional[datetime]):
+    y = BODY_TOP + 40
+    qr_w = 152 if qr is not None else 0
+    text_r = CONTENT_R - (qr_w + 34 if qr is not None else 0)
+
+    size = fit_text(draw, "CLOSED", "black", text_r - CONTENT_L, 78, 48)
+    draw.text((CONTENT_L, y), "CLOSED", font=font("black", size), fill=BLACK)
+    y += int(size * 1.08) + 10
+    draw.text((CONTENT_L, y), opens_label(view.now, opens), font=font("semibold", 32), fill=BLACK)
+    y += 46
+    draw.text((CONTENT_L, y), "Scan to book ahead" if qr is not None else "",
+              font=font("regular", 22), fill=BLACK)
 
     if qr is not None:
         qx = CONTENT_R - qr_w
@@ -311,14 +403,14 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
         return x0 + span_w * min(1.0, max(0.0, (t - d0).total_seconds() / total))
 
     label = f"TODAY   {_t12(day_start)}–{_t12(day_end)}"
-    tracked(draw, (x0, TIMELINE_TOP + 9), label, font("bold", 13), BLACK, tracking=2)
+    tracked(draw, (x0, TIMELINE_TOP + 8), label, font("bold", 14), BLACK, tracking=2)
 
     if view.data_unknown:
         summary = "schedule unavailable"
     else:
         booked = sum(1 for e in view.events if e.end > d0 and e.start < d1)
         summary = f"{booked} booking{'s' if booked != 1 else ''} today"
-    draw.text((x1, TIMELINE_TOP + 8), summary, font=font("medium", 14), fill=BLACK, anchor="ra")
+    draw.text((x1, TIMELINE_TOP + 8), summary, font=font("medium", 16), fill=BLACK, anchor="ra")
 
     # bar sits low enough that the now-marker's flag never fouls the label row
     bar_y0 = TIMELINE_TOP + 40
@@ -339,16 +431,18 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
             ex1 = ex0 + 3
         draw.rectangle([ex0, bar_y0, ex1, bar_y1], fill=BLACK)
         # label only if it fits and the now-marker won't sit on top of it
-        if ex1 - ex0 >= 58 and not (ex0 - 4 <= now_x <= ex0 + 58):
-            draw.text((ex0 + 8, bar_y0 + 9), _t12_compact(ev.start),
-                      font=font("semibold", 14), fill=WHITE)
+        f_lbl = font("semibold", 16)
+        lbl = _t12_compact(ev.start)
+        lbl_w = _text_w(draw, lbl, f_lbl)
+        if ex1 - ex0 >= lbl_w + 16 and not (ex0 - 4 <= now_x <= ex0 + lbl_w + 12):
+            draw.text((ex0 + 8, bar_y0 + 8), lbl, font=f_lbl, fill=WHITE)
 
     # now marker: flag above the bar + full-height rule through it
     draw.rectangle([now_x - 1, bar_y0 - 6, now_x + 1, bar_y1 + 6], fill=BLACK)
     draw.polygon([(now_x - 6, bar_y0 - 13), (now_x + 6, bar_y0 - 13), (now_x, bar_y0 - 5)], fill=BLACK)
 
     # hour ruler
-    f_tick = font("medium", 13)
+    f_tick = font("semibold", 16)
     hour = d0
     step = 2 if total > 8 * 3600 else 1
     while hour <= d1:
@@ -374,7 +468,8 @@ def make_qr(url: str, box: int = 4) -> Image.Image:
 def render(view: RoomView, *, logo: Optional[Image.Image] = None,
            booking_url: Optional[str] = None,
            day_start: time = time(8, 0), day_end: time = time(20, 0),
-           redact_private: bool = True) -> Image.Image:
+           redact_private: bool = True,
+           active_days: Sequence[int] = (0, 1, 2, 3, 4)) -> Image.Image:
     img = Image.new("L", (W, H), WHITE)
     draw = ImageDraw.Draw(img)
 
@@ -386,6 +481,8 @@ def render(view: RoomView, *, logo: Optional[Image.Image] = None,
         draw_unknown(img, draw, view, qr)
     elif view.is_busy:
         draw_busy(img, draw, view, redact_private)
+    elif is_closed(view.now, day_start, day_end, active_days):
+        draw_closed(img, draw, view, qr, next_open(view.now, day_start, active_days))
     else:
         draw_free(img, draw, view, qr)
 

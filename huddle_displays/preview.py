@@ -50,6 +50,11 @@ CASES = {
                                 current=None, events=DAY, stale=True,
                                 stale_since=datetime(2026, 9, 16, 14, 29, tzinfo=TZ)),
                        {"booking_url": "https://outlook.office.com/bookwithme/user/boardroom@lwyd.in"}),
+    "07-short-slot":  (view(13, 45), {"booking_url": "https://huddle.lwyd.in/?book=boardroom@lwyd.in"}),
+    "08-closed-eve":  (view(22, 10), {"booking_url": "https://huddle.lwyd.in/?book=boardroom@lwyd.in"}),
+    "09-closed-wknd": (RoomView(room=ROOM, now=datetime(2026, 9, 18, 22, 10, tzinfo=TZ),
+                                current=None, events=[]),
+                       {"booking_url": "https://huddle.lwyd.in/?book=boardroom@lwyd.in"}),
 }
 
 if __name__ == "__main__":

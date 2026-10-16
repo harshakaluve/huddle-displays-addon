@@ -23,7 +23,7 @@
   "graph_tenant_id": "PASTE_FROM_room-dashboard/server/.env_TENANT_ID",
   "graph_client_id": "PASTE_FROM_room-dashboard/server/.env_CLIENT_ID",
   "graph_client_secret": "PASTE_FROM_room-dashboard/server/.env_CLIENT_SECRET",
-  "booking_url_template": "https://huddle.lwyd.in/?room={room_id}",
+  "booking_url_template": "https://huddle.lwyd.in/?book={mailbox}",
   "logo_path": "/share/huddle/logo.png",
   "rooms": [
     {

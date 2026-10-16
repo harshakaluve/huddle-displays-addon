@@ -166,6 +166,7 @@ def image_endpoint(key: str, fmt: str):
         day_start=CFG.day_start,
         day_end=CFG.day_end,
         redact_private=CFG.redact_private,
+        active_days=CFG.active_days,
     )
     body = to_bytes(img, fmt)
     return Response(body, mimetype="image/bmp" if fmt == "bmp" else "image/png",
