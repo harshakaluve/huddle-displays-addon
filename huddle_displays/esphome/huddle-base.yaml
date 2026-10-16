@@ -71,7 +71,7 @@ globals:
   - id: sleep_s
     type: int
     restore_value: false
-    initial_value: "900"        # safe fallback if the renderer never answers
+    initial_value: "120"        # fallback if the renderer never answers: retry in 2 min, not 15
   - id: do_render
     type: bool
     restore_value: false
@@ -90,8 +90,8 @@ deep_sleep:
   # Safety net only. If a cycle wedges (renderer down mid-request, DNS hang),
   # run_duration fires and the panel sleeps 15 min rather than flattening the
   # battery awake. The normal path always calls deep_sleep.enter explicitly.
-  run_duration: 150s
-  sleep_duration: 15min
+  run_duration: 90s
+  sleep_duration: 2min
 
 spi:
   clk_pin: GPIO8
@@ -116,7 +116,8 @@ online_image:
         - script.execute: sleep_now
     on_error:
       then:
-        - logger.log: "image download failed - keeping the previous screen"
+        - logger.log: "image download failed - keeping the previous screen, retrying in 2 min"
+        - lambda: "id(sleep_s) = 120;"
         - script.execute: sleep_now
 
 display:
@@ -143,6 +144,38 @@ sensor:
     internal: true
     update_interval: 10s
 
+interval:
+  # Only does anything while the panel is being held awake for an OTA update.
+  # When the server releases the hold, nap briefly and rejoin the normal cycle.
+  - interval: 15s
+    then:
+      - if:
+          condition:
+            lambda: "return id(hold_awake);"
+          then:
+            - http_request.get:
+                url: !lambda |-
+                  char buf[160];
+                  snprintf(buf, sizeof(buf), "%s/plan/%s?soc=%.1f&rssi=0",
+                           "${renderer}", "${panel_id}", id(batt_pct));
+                  return std::string(buf);
+                capture_response: true
+                on_response:
+                  then:
+                    - lambda: |-
+                        json::parse_json(body, [](JsonObject root) -> bool {
+                          id(hold_awake) = root["stay_awake"] | false;
+                          return true;
+                        });
+                    - if:
+                        condition:
+                          lambda: "return !id(hold_awake);"
+                        then:
+                          - logger.log: "hold released - napping 20 s, then normal cycle"
+                          - deep_sleep.enter:
+                              id: ds
+                              sleep_duration: 20s
+
 script:
   # ----- the whole life of one wake ------------------------------------
   - id: cycle
@@ -157,10 +190,10 @@ script:
             not:
               wifi.connected:
           then:
-            - logger.log: "no wifi - retrying in 5 min"
+            - logger.log: "no wifi - retrying in 2 min"
             - deep_sleep.enter:
                 id: ds
-                sleep_duration: 5min
+                sleep_duration: 2min
 
       - component.update: rssi
       - http_request.get:
@@ -178,7 +211,7 @@ script:
             then:
               - lambda: |-
                   json::parse_json(body, [](JsonObject root) -> bool {
-                    id(sleep_s)    = root["sleep_s"]    | 900;
+                    id(sleep_s)    = root["sleep_s"]    | 120;
                     id(do_render)  = root["render"]     | true;
                     id(hold_awake) = root["stay_awake"] | false;
                     ESP_LOGI("huddle", "plan: sleep=%ds render=%d hold=%d",
@@ -205,7 +238,7 @@ script:
                           - script.execute: sleep_now
           on_error:
             then:
-              - logger.log: "plan request failed - falling back to 15 min"
+              - logger.log: "plan request failed - retrying in 2 min"
               - script.execute: sleep_now
 
   - id: sleep_now
