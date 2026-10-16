@@ -46,6 +46,7 @@ _lock = threading.Lock()
 _cache: dict[str, tuple[float, list[Event]]] = {}       # room_id -> (fetched_at, events)
 _last_error: dict[str, str] = {}
 _stay_awake: set[str] = set()
+_seen: dict[str, dict] = {}                # panel id -> last check-in (time + wifi signal)
 CACHE_TTL = 60.0
 
 
@@ -121,6 +122,8 @@ def plan_endpoint(key: str):
     except KeyError:
         abort(404)
     room_id = room.room_id
+    _seen[key] = {"at": datetime.now(CFG.tz), "rssi": request.args.get("rssi", type=int)}
+    log.info("plan %s rssi=%s", key, _seen[key]["rssi"])
 
     # A fuel gauge reports state-of-charge directly (soc); a resistor divider
     # reports volts. -1 means no battery hardware is fitted at all.
@@ -240,6 +243,14 @@ def health():
         "errors": _last_error,
         "stay_awake": sorted(_stay_awake),
         "now": datetime.now(CFG.tz).isoformat(),
+        # Last time each panel asked for its plan, and its wifi signal (dBm,
+        # closer to 0 is stronger; below about -80 is marginal).
+        "panels_seen": {
+            k: {"last_seen": v["at"].isoformat(),
+                "age_s": int((datetime.now(CFG.tz) - v["at"]).total_seconds()),
+                "rssi": v["rssi"]}
+            for k, v in sorted(_seen.items())
+        },
     })
 
 
