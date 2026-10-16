@@ -17,7 +17,7 @@ substitutions:
   panel_id: "REQUIRED"
   friendly_name: "REQUIRED"     # the room it normally lives on, for the OTA list
   static_ip: "REQUIRED"
-  renderer: "http://10.0.0.5:8099"
+  renderer: "http://10.0.1.113:8099"
   gateway: "10.0.0.1"
   subnet: "255.255.255.0"
   dns1: "10.0.0.1"
