@@ -441,16 +441,24 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
     draw.rectangle([now_x - 1, bar_y0 - 6, now_x + 1, bar_y1 + 6], fill=BLACK)
     draw.polygon([(now_x - 6, bar_y0 - 13), (now_x + 6, bar_y0 - 13), (now_x, bar_y0 - 5)], fill=BLACK)
 
-    # hour ruler
+    # ruler: a tick every 30 min (taller on the hour), a label on the hours.
+    # Label every hour while they fit (~46 px each), otherwise every second hour.
     f_tick = font("semibold", 16)
-    hour = d0
-    step = 2 if total > 8 * 3600 else 1
-    while hour <= d1:
-        hx = pos(hour)
-        draw.line([(hx, bar_y1 + 2), (hx, bar_y1 + 6)], fill=BLACK, width=1)
-        anchor = "la" if hour == d0 else ("ra" if hour == d1 else "ma")
-        draw.text((hx, bar_y1 + 9), _h12(hour), font=f_tick, fill=BLACK, anchor=anchor)
-        hour += timedelta(hours=step)
+    px_per_hour = span_w * 3600 / total
+    label_every = 1 if px_per_hour >= 46 else 2
+    t = d0
+    n = 0
+    while t <= d1:
+        tx = pos(t)
+        on_hour = t.minute == 0
+        draw.line([(tx, bar_y1 + 2), (tx, bar_y1 + (9 if on_hour else 5))],
+                  fill=BLACK, width=2 if on_hour else 1)
+        if on_hour:
+            if (n // 2) % label_every == 0 or t == d1:
+                anchor = "la" if t == d0 else ("ra" if t == d1 else "ma")
+                draw.text((tx, bar_y1 + 12), _h12(t), font=f_tick, fill=BLACK, anchor=anchor)
+        t += timedelta(minutes=30)
+        n += 1
 
 
 # --------------------------------------------------------------------------
