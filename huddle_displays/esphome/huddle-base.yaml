@@ -62,11 +62,8 @@ wifi:
   password: !secret wifi_password
   fast_connect: true            # skip the scan; go straight to the stored AP
   power_save_mode: none         # we're only awake for seconds
-  manual_ip:                    # skips DHCP: ~1-2 s less awake time per cycle
-    static_ip: ${static_ip}
-    gateway: ${gateway}
-    subnet: ${subnet}
-    dns1: ${dns1}
+  # DHCP on purpose: no manual_ip, so this works on any subnet. Costs ~1-2 s
+  # of awake time per cycle versus a static address.
   on_connect:
     - logger.log: "wifi up"
 
