@@ -131,7 +131,9 @@ display:
       inverted: true
     update_interval: never      # we drive it by hand, once per wake
     lambda: |-
-      it.image(0, 0, id(screen));
+      // BINARY images draw set bits as ink; our BMP stores white as 1, so swap
+      // the colours or the whole screen comes out inverted on the e-paper.
+      it.image(0, 0, id(screen), COLOR_OFF, COLOR_ON);
 
 sensor:
   # Internal only -- it rides along on the /plan request rather than being its
