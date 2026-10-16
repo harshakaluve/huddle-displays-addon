@@ -22,12 +22,14 @@ from __future__ import annotations
 
 import logging
 import re
+import time
+from urllib.parse import quote
 from datetime import datetime, timedelta
 from typing import Optional, Sequence
 
 import requests
 
-from .model import Event, Room
+from .model import PRIVATE_SENSITIVITIES, Event, Room
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +98,8 @@ class GraphEnricher:
         self.timeout = timeout
         self._token: Optional[str] = None
         self._token_expiry = datetime.min
+        # (organiser address, iCalUId) -> (fetched_at, (subject, sensitivity) | None)
+        self._own: dict = {}
 
     def _access_token(self) -> str:
         if self._token and datetime.utcnow() < self._token_expiry:
@@ -116,6 +120,38 @@ class GraphEnricher:
         self._token_expiry = datetime.utcnow() + timedelta(seconds=payload.get("expires_in", 3600) - 120)
         return self._token
 
+    OWN_COPY_TTL = 600.0
+
+    def _own_copy(self, address: str, ical_uid: str, tz: str):
+        """The organiser's own copy of a meeting: (subject, sensitivity) or None.
+
+        Exchange rewrites the subject on a ROOM mailbox's copy to the organiser's
+        name, so the real title only survives on the organiser's calendar. The
+        same iCalUId identifies the meeting on both. Failures are not cached, and
+        any error just means we fall back to what the room copy says.
+        """
+        key = (address.lower(), ical_uid)
+        hit = self._own.get(key)
+        if hit and time.time() - hit[0] < self.OWN_COPY_TTL:
+            return hit[1]
+        try:
+            r = requests.get(
+                f"https://graph.microsoft.com/v1.0/users/{quote(address)}/events",
+                headers={"Authorization": f"Bearer {self._access_token()}",
+                         "Prefer": f'outlook.timezone="{tz}"'},
+                params={"$filter": f"iCalUId eq '{ical_uid}'", "$select": "subject,sensitivity"},
+                timeout=self.timeout,
+            )
+            if r.status_code != 200:
+                return None
+            val = r.json().get("value") or []
+        except requests.RequestException:
+            return None
+        result = ((val[0].get("subject") or "", (val[0].get("sensitivity") or "normal").lower())
+                  if val else None)
+        self._own[key] = (time.time(), result)
+        return result
+
     def events(self, room: Room, start: datetime, end: datetime, tz: str) -> list[Event]:
         if not room.mailbox:
             raise ValueError(f"room {room.room_id} has no mailbox set")
@@ -128,7 +164,7 @@ class GraphEnricher:
             params={
                 "startDateTime": start.replace(tzinfo=None).isoformat(),
                 "endDateTime": end.replace(tzinfo=None).isoformat(),
-                "$select": "subject,start,end,organizer,sensitivity,showAs,isCancelled",
+                "$select": "subject,start,end,organizer,sensitivity,showAs,isCancelled,iCalUId",
                 "$orderby": "start/dateTime",
                 "$top": "50",
             },
@@ -139,13 +175,32 @@ class GraphEnricher:
         for raw in r.json().get("value", []):
             if raw.get("isCancelled"):
                 continue
-            organiser = (raw.get("organizer") or {}).get("emailAddress", {}).get("name")
+            addr = (raw.get("organizer") or {}).get("emailAddress", {})
+            organiser = addr.get("name")
+            subject = raw.get("subject") or ""
+            sensitivity = (raw.get("sensitivity") or "normal").lower()
+            ev_start = datetime.fromisoformat(raw["start"]["dateTime"][:26]).replace(tzinfo=start.tzinfo)
+            ev_end = datetime.fromisoformat(raw["end"]["dateTime"][:26]).replace(tzinfo=start.tzinfo)
+
+            # The room's copy carries only the organiser's name as its subject
+            # (Exchange's AddOrganizerToSubject/DeleteSubject). For meetings that
+            # haven't finished, fetch the real title and privacy flag from the
+            # organiser's own calendar.
+            rewritten = (not subject.strip()) or subject.strip().lower() == (organiser or "").strip().lower()
+            if rewritten and addr.get("address") and raw.get("iCalUId") and ev_end > datetime.now(start.tzinfo):
+                own = self._own_copy(addr["address"], raw["iCalUId"], tz)
+                if own:
+                    if own[0].strip():
+                        subject = own[0]
+                    if own[1] in PRIVATE_SENSITIVITIES:
+                        sensitivity = own[1]
+
             out.append(Event(
-                start=datetime.fromisoformat(raw["start"]["dateTime"][:26]).replace(tzinfo=start.tzinfo),
-                end=datetime.fromisoformat(raw["end"]["dateTime"][:26]).replace(tzinfo=start.tzinfo),
-                subject=raw.get("subject") or "",
+                start=ev_start,
+                end=ev_end,
+                subject=subject,
                 organiser=organiser,
-                sensitivity=(raw.get("sensitivity") or "normal").lower(),
+                sensitivity=sensitivity,
                 tentative=(raw.get("showAs") == "tentative"),
             ))
         return out
