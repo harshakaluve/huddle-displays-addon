@@ -69,6 +69,9 @@ class RoomView:
     stale: bool = False
     stale_since: Optional[datetime] = None
     battery_pct: Optional[int] = None
+    # Other rooms that are free right now: (name, free until or None for the
+    # rest of the day), longest-free first. Only rooms with live data count.
+    others: list = field(default_factory=list)
 
     @property
     def data_unknown(self) -> bool:

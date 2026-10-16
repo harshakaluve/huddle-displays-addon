@@ -40,6 +40,14 @@ def view(now_h, now_m, **kw):
     return RoomView(room=ROOM, now=now, current=current, events=DAY, **kw)
 
 
+OTHERS = [
+    ("Margarita", None),
+    ("The Big Room", datetime(2026, 9, 16, 16, 0, tzinfo=TZ)),
+    ("Pixel", datetime(2026, 9, 16, 15, 30, tzinfo=TZ)),
+    ("Curaçao", datetime(2026, 9, 16, 14, 45, tzinfo=TZ)),
+]
+
+
 CASES = {
     "01-busy":        (view(14, 29), {}),
     "02-free":        (view(13, 14), {"booking_url": "https://outlook.office.com/bookwithme/user/boardroom@lwyd.in"}),
@@ -52,6 +60,10 @@ CASES = {
                        {"booking_url": "https://outlook.office.com/bookwithme/user/boardroom@lwyd.in"}),
     "07-short-slot":  (view(13, 45), {"booking_url": "https://huddle.lwyd.in/?book=boardroom@lwyd.in"}),
     "08-closed-eve":  (view(22, 10), {"booking_url": "https://huddle.lwyd.in/?book=boardroom@lwyd.in"}),
+    "10-busy-others": (view(14, 29, others=OTHERS), {}),
+    "11-free-others": (view(13, 14, others=OTHERS), {"booking_url": "https://example.com"}),
+    "12-short-others": (view(13, 45, others=OTHERS[:1]), {}),
+    "13-busy-two-line": (view(16, 44, others=OTHERS), {}),
     "09-closed-wknd": (RoomView(room=ROOM, now=datetime(2026, 9, 18, 22, 10, tzinfo=TZ),
                                 current=None, events=[]),
                        {"booking_url": "https://huddle.lwyd.in/?book=boardroom@lwyd.in"}),

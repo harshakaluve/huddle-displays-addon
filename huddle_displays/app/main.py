@@ -26,7 +26,7 @@ from PIL import Image
 
 from . import config
 from .model import Event, Room, RoomView
-from .render import render, to_bytes
+from .render import is_closed, render, to_bytes
 from .sleeplan import plan
 from .sources import GraphEnricher, HomeAssistantSource, merge_organisers
 
@@ -99,7 +99,35 @@ def build_view(key: str, battery_pct: Optional[int] = None) -> RoomView:
     events, stale, since = fetch_events(room, now)
     current = next((e for e in events if e.contains(now)), None)
     return RoomView(room=room, now=now, current=current, events=events,
-                    stale=stale, stale_since=since, battery_pct=battery_pct)
+                    stale=stale, stale_since=since, battery_pct=battery_pct,
+                    others=other_free_rooms(room, now))
+
+
+def other_free_rooms(room: Room, now: datetime) -> list[tuple[str, Optional[datetime]]]:
+    """Rooms (other than this one) that are free right now, longest-free first.
+
+    Only rooms with live data count: an unreachable calendar is not an empty
+    one, so a room we can't read is never offered as free. Nothing is offered
+    outside opening hours, when every room is closed anyway.
+    """
+    if is_closed(now, CFG.day_start, CFG.day_end, CFG.active_days):
+        return []
+    found = []
+    for other in CFG.rooms:
+        if other.room_id == room.room_id:
+            continue
+        events, stale, _ = fetch_events(other, now)
+        if stale and not events:
+            continue
+        if any(e.contains(now) for e in events):
+            continue
+        nxt = next((e for e in events if e.start > now), None)
+        found.append((other.name, nxt.start if nxt else None))
+    # Free for the rest of the day first, then by how long the gap lasts.
+    far = now + timedelta(days=1)
+    found.sort(key=lambda r: (r[1] or far), reverse=True)
+    # A room free for under 15 minutes isn't worth a walk.
+    return [r for r in found if r[1] is None or r[1] - now >= timedelta(minutes=15)]
 
 
 def battery_pct(volts: float) -> int:
@@ -176,24 +204,117 @@ def image_endpoint(key: str, fmt: str):
                     headers={"Cache-Control": "no-store", "Content-Length": str(len(body))})
 
 
+def _expected_gap_s() -> int:
+    """Longest normal silence between two check-ins during opening hours."""
+    marks = sorted(set(CFG.refresh_minutes)) or [0]
+    gaps = [(b - a) % 60 or 60 for a, b in zip(marks, marks[1:] + marks[:1])]
+    return max(gaps) * 60
+
+
+def panel_status(key: str, now: datetime) -> dict:
+    """Is this panel behaving? Judged against the schedule, so a panel that is
+    asleep overnight or at the weekend is not reported as broken."""
+    seen = _seen.get(key)
+    closed = is_closed(now, CFG.day_start, CFG.day_end, CFG.active_days)
+    if seen is None:
+        return {"state": "idle" if closed else "wait", "label": "Asleep" if closed else "Waiting",
+                "detail": "no check-in since the add-on started", "age": None, "rssi": None}
+    age = int((now - seen["at"]).total_seconds())
+    gap = _expected_gap_s()
+    if closed:
+        state, label = "idle", "Asleep"
+    elif age <= gap + 90:
+        state, label = "ok", "Online"
+    elif age <= gap * 2 + 120:
+        state, label = "late", "Late"
+    else:
+        state, label = "bad", "Quiet"
+    return {"state": state, "label": label, "age": age, "rssi": seen["rssi"], "detail": ""}
+
+
+def _ago(age: Optional[int]) -> str:
+    if age is None:
+        return "not seen yet"
+    if age < 90:
+        return f"{age}s ago"
+    if age < 5400:
+        return f"{age // 60} min ago"
+    return f"{age // 3600} h {age % 3600 // 60} min ago"
+
+
+def _signal(rssi: Optional[int]) -> tuple[int, str]:
+    """(bars 0-4, words) from wifi dBm."""
+    if rssi is None or rssi == 0:
+        return 0, "no reading"
+    for floor, bars, words in ((-55, 4, "excellent"), (-65, 3, "good"), (-75, 2, "fair"), (-85, 1, "weak")):
+        if rssi >= floor:
+            return bars, f"{words}, {rssi} dBm"
+    return 1, f"weak, {rssi} dBm"
+
+
 @app.get("/")
 def index():
     # Home Assistant's "Open Web UI" (ingress) button lands here.
     base = request.headers.get("X-Ingress-Path", "")
-    rows = "".join(
-        f'<li><a href="{base}/preview/{r.room_id}">{r.name}</a></li>' for r in CFG.rooms
-    )
-    return Response(
-        f"""<!doctype html><meta charset=utf-8><title>Huddle Room Displays</title>
-<style>body{{font:15px/1.6 system-ui,sans-serif;background:#1c1c1c;color:#ddd;
-max-width:420px;margin:48px auto;padding:0 16px}}
-h1{{font-size:18px}}
-a{{color:#8ab4f8;text-decoration:none}} a:hover{{text-decoration:underline}}
-ul{{list-style:none;padding:0}} li{{padding:6px 0;border-bottom:1px solid #333}}</style>
-<h1>Huddle Room Displays</h1>
-<ul>{rows}</ul>
-<p style="opacity:.6;font-size:13px">Panels talk to /plan and /image directly; this page is just for humans.</p>""",
-        mimetype="text/html")
+    now = datetime.now(CFG.tz)
+    cards, counts = [], {"ok": 0, "late": 0, "bad": 0, "idle": 0, "wait": 0}
+    for r in CFG.rooms:
+        key = r.panel_id or r.room_id
+        st = panel_status(key, now)
+        counts[st["state"]] += 1
+        events, stale, _ = fetch_events(r, now)
+        cur = next((e for e in events if e.contains(now)), None)
+        if stale and not events:
+            room_state = "Calendar unreachable"
+        elif cur:
+            room_state = f"In use until {cur.end.strftime('%I:%M %p').lstrip('0')}"
+        else:
+            room_state = "Free"
+        bars, words = _signal(st["rssi"])
+        bar_html = "".join(f'<i class="{"on" if i < bars else ""}" style="height:{5 + i * 4}px"></i>' for i in range(4))
+        cards.append(f"""<a class="card" href="{base}/preview/{key}">
+<div class="shot"><img loading="lazy" src="{base}/image/{key}.png?t={int(_time.time())}" alt="{r.name} screen"></div>
+<div class="meta"><div class="row"><b>{r.name}</b><span class="chip {st['state']}">{st['label']}</span></div>
+<div class="sub">{room_state}</div>
+<div class="row small"><span>{key} &middot; {_ago(st['age'])}</span><span class="sig" title="Wi-Fi {words}">{bar_html}</span></div></div></a>""")
+
+    if counts["bad"] or counts["late"]:
+        banner = f'<div class="banner warn">{counts["bad"] + counts["late"]} panel(s) have gone quiet. Check they are charged and in range.</div>'
+    elif counts["wait"]:
+        banner = '<div class="banner">Panels are checking in. Give them a few minutes after an add-on restart.</div>'
+    elif counts["idle"] and not counts["ok"]:
+        banner = '<div class="banner">Outside opening hours. Panels are asleep until the next working day.</div>'
+    else:
+        banner = '<div class="banner good">All panels are checking in on schedule.</div>'
+    errors = "".join(f"<li>{k}: {v}</li>" for k, v in _last_error.items())
+    err_html = f'<div class="banner warn"><b>Calendar errors</b><ul>{errors}</ul></div>' if errors else ""
+
+    return Response(f"""<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<meta http-equiv=refresh content=60><title>Huddle Room Displays</title>
+<style>
+:root{{--bg:#16171a;--card:#1f2024;--line:#2e3036;--ink:#ececee;--mute:#9a9ca4;--ok:#4ade80;--late:#fbbf24;--bad:#f87171;--idle:#8b8d96}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}}
+main{{max-width:1180px;margin:0 auto;padding:28px 20px 48px}}
+h1{{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}}.lede{{color:var(--mute);margin:0 0 20px;font-size:13px}}
+.banner{{padding:10px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);margin-bottom:18px;font-size:14px}}
+.banner.good{{border-color:#285a3a;color:var(--ok)}}.banner.warn{{border-color:#6b4a14;color:var(--late)}}
+.banner ul{{margin:6px 0 0;padding-left:18px;color:var(--mute)}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}}
+.card{{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;color:inherit;text-decoration:none;transition:border-color .15s}}
+.card:hover{{border-color:#4a4d57}}.shot{{background:#d9d5cc;padding:10px}}
+.shot img{{display:block;width:100%;height:auto;image-rendering:pixelated;border-radius:2px}}
+.meta{{padding:12px 14px 13px}}.row{{display:flex;justify-content:space-between;align-items:center;gap:10px}}
+.row b{{font-size:16px}}.sub{{color:var(--ink);margin:2px 0 8px}}.small{{color:var(--mute);font-size:12.5px}}
+.chip{{font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;border:1px solid currentColor}}
+.chip.ok{{color:var(--ok)}}.chip.late{{color:var(--late)}}.chip.bad{{color:var(--bad)}}.chip.idle,.chip.wait{{color:var(--idle)}}
+.sig{{display:inline-flex;align-items:flex-end;gap:2px;height:17px}}.sig i{{width:4px;background:#3a3c44;border-radius:1px}}.sig i.on{{background:var(--ink)}}
+footer{{color:var(--mute);font-size:12.5px;margin-top:22px}}
+</style>
+<main><h1>Huddle Room Displays</h1>
+<p class="lede">{now.strftime('%a %d %b, %I:%M %p').replace(' 0',' ')} &middot; refreshes every minute &middot; click a room to see its live screen</p>
+{banner}{err_html}<div class="grid">{''.join(cards)}</div>
+<footer>Check-in history resets when the add-on restarts. Panels talk to /plan and /image directly; this page is for people.</footer></main>""",
+                    mimetype="text/html")
 
 
 @app.get("/preview/<room_id>")

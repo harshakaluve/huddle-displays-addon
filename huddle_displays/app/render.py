@@ -251,6 +251,7 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
         nxt_s = f"Next  {_t12(nxt.start)}  ·  {nxt.display_subject(redact)}"
         for ln in wrap(draw, nxt_s, f_n, CONTENT_R - CONTENT_L, 1):
             draw.text((CONTENT_L, y), ln, font=f_n, fill=ink)
+        y += 28
 
     # progress bar pinned to the bottom of the body band
     bar_y = BODY_BOTTOM - 38
@@ -258,12 +259,49 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
     frac = 1.0 - (remaining.total_seconds() / max(1.0, ev.duration.total_seconds()))
     frac = min(1.0, max(0.0, frac))
 
-    draw.text((CONTENT_R, bar_y - 25), f"{humanise_short(remaining)} left",
-              font=font("semibold", 21), fill=ink, anchor="ra")
+    left_s = f"{humanise_short(remaining)} left"
+    draw.text((CONTENT_R, bar_y - 25), left_s, font=font("semibold", 21), fill=ink, anchor="ra")
+
+    # Where to go instead, if there is room for the line above the bar.
+    if view.others and y - (28 if nxt else 0) <= bar_y - 36:
+        f_o = font("regular", 20)
+        room_w = CONTENT_R - CONTENT_L - _text_w(draw, left_s, font("semibold", 21)) - 24
+        names = [n for n, _ in view.others[:OTHERS_MAX]]
+        while names:
+            line = "Free now  " + "  ·  ".join(names)
+            if _text_w(draw, line, f_o) <= room_w:
+                draw.text((CONTENT_L, bar_y - 24), line, font=f_o, fill=ink)
+                break
+            names.pop()
     draw.rectangle([CONTENT_L, bar_y, CONTENT_R, bar_y + 12], outline=ink, width=2)
     fill_w = int((CONTENT_R - CONTENT_L) * frac)
     if fill_w > 3:
         draw.rectangle([CONTENT_L, bar_y, CONTENT_L + fill_w, bar_y + 12], fill=ink)
+
+
+def _until_label(until: Optional[datetime]) -> str:
+    return "rest of the day" if until is None else f"until {_t12(until)}"
+
+
+OTHERS_W = 262           # width of the "also free now" column on the free screen
+OTHERS_MAX = 3
+
+
+def draw_others_column(img, draw, view: RoomView):
+    """Right-hand column on the free screen: where else can I go right now?"""
+    x0 = CONTENT_R - OTHERS_W
+    top, bottom = BODY_TOP + 30, BODY_BOTTOM - 22
+    draw.line([(x0 - 22, top), (x0 - 22, bottom)], fill=BLACK, width=2)
+    tracked(draw, (x0, top + 4), "ALSO FREE NOW", font("bold", 15), BLACK, tracking=2)
+    y = top + 38
+    for name, until in view.others[:OTHERS_MAX]:
+        size = fit_text(draw, name, "semibold", OTHERS_W, 26, 18)
+        draw.text((x0, y), name, font=font("semibold", size), fill=BLACK)
+        draw.text((x0, y + size + 4), _until_label(until), font=font("regular", 19), fill=BLACK)
+        y += size + 4 + 19 + 20
+    extra = len(view.others) - OTHERS_MAX
+    if extra > 0:
+        draw.text((x0, y - 6), f"+ {extra} more", font=font("medium", 17), fill=BLACK)
 
 
 # --------------------------------------------------------------------------
@@ -274,8 +312,13 @@ def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
     # optically centred in the body band rather than top-aligned, so the
     # free screen doesn't read as "content fell off the bottom"
     y = BODY_TOP + 40
+    # Other free rooms are more useful at the door than a QR, so they take the column.
+    if view.others:
+        qr = None
     qr_w = 152 if qr is not None else 0
     text_r = CONTENT_R - (qr_w + 34 if qr is not None else 0)
+    if view.others:
+        text_r = CONTENT_R - OTHERS_W - 44
 
     size = fit_text(draw, "AVAILABLE", "black", text_r - CONTENT_L, 78, 48)
     draw.text((CONTENT_L, y), "AVAILABLE", font=font("black", size), fill=BLACK)
@@ -315,7 +358,9 @@ def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
             if lines:
                 draw.text((CONTENT_L + 14, y + 26), lines[0], font=f, fill=BLACK)
 
-    if qr is not None:
+    if view.others:
+        draw_others_column(img, draw, view)
+    elif qr is not None:
         qx = CONTENT_R - qr_w
         qy = BODY_TOP + 34
         img.paste(qr.resize((qr_w, qr_w), Image.NEAREST), (qx, qy))
