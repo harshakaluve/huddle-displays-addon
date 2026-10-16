@@ -5,12 +5,21 @@ from __future__ import annotations
 
 import json
 import os
+from urllib.parse import quote
 from dataclasses import dataclass, field
-from datetime import time
+from datetime import datetime, time, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from .model import Room
+
+# Opens Outlook on the web with a new meeting already addressed to the room.
+# {start}/{end} are filled in at render time (next quarter hour, +30 min).
+OUTLOOK_COMPOSE = (
+    "https://outlook.office.com/calendar/0/deeplink/compose"
+    "?path=/calendar/action/compose&rru=addevent"
+    "&to={mailbox}&startdt={start}&enddt={end}"
+)
 
 DEFAULT_PATHS = ["/data/options.json", "options.json"]
 
@@ -43,7 +52,7 @@ class Settings:
     graph_client_id: str = ""
     graph_client_secret: str = ""
 
-    booking_url_template: str = "https://outlook.office.com/book/{mailbox}"
+    booking_url_template: str = OUTLOOK_COMPOSE
     logo_path: str = "/share/huddle/logo.png"
 
     @property
@@ -71,12 +80,21 @@ class Settings:
     def assignments(self) -> dict[str, str]:
         return {(r.panel_id or r.room_id): r.room_id for r in self.rooms}
 
-    def booking_url(self, room: Room) -> Optional[str]:
+    def booking_url(self, room: Room, now: Optional[datetime] = None) -> Optional[str]:
         if room.booking_url:
             return room.booking_url
         if not (self.booking_url_template and room.mailbox):
             return None
-        return self.booking_url_template.format(mailbox=room.mailbox, room_id=room.room_id)
+        # Next quarter hour, for templates that pre-fill a time slot.
+        now = now or datetime.now(self.tz)
+        start = now.replace(second=0, microsecond=0)
+        start += timedelta(minutes=(-start.minute) % 15)
+        end = start + timedelta(minutes=30)
+        fmt = "%Y-%m-%dT%H:%M"
+        return self.booking_url_template.format(
+            mailbox=quote(room.mailbox, safe="@"), room_id=room.room_id,
+            room_name=quote(room.name, safe=""),
+            start=start.strftime(fmt), end=end.strftime(fmt))
 
 
 def load(path: Optional[str] = None) -> Settings:

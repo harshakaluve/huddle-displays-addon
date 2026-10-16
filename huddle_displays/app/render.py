@@ -279,29 +279,11 @@ def draw_busy(img, draw, view: RoomView, redact: bool):
         draw.rectangle([CONTENT_L, bar_y, CONTENT_L + fill_w, bar_y + 12], fill=ink)
 
 
-def _until_label(until: Optional[datetime]) -> str:
-    return "rest of the day" if until is None else f"until {_t12(until)}"
+def _until_short(until: Optional[datetime]) -> str:
+    return "all day" if until is None else f"to {_t12_compact(until)}"
 
 
-OTHERS_W = 262           # width of the "also free now" column on the free screen
 OTHERS_MAX = 3
-
-
-def draw_others_column(img, draw, view: RoomView):
-    """Right-hand column on the free screen: where else can I go right now?"""
-    x0 = CONTENT_R - OTHERS_W
-    top, bottom = BODY_TOP + 30, BODY_BOTTOM - 22
-    draw.line([(x0 - 22, top), (x0 - 22, bottom)], fill=BLACK, width=2)
-    tracked(draw, (x0, top + 4), "ALSO FREE NOW", font("bold", 15), BLACK, tracking=2)
-    y = top + 38
-    for name, until in view.others[:OTHERS_MAX]:
-        size = fit_text(draw, name, "semibold", OTHERS_W, 26, 18)
-        draw.text((x0, y), name, font=font("semibold", size), fill=BLACK)
-        draw.text((x0, y + size + 4), _until_label(until), font=font("regular", 19), fill=BLACK)
-        y += size + 4 + 19 + 20
-    extra = len(view.others) - OTHERS_MAX
-    if extra > 0:
-        draw.text((x0, y - 6), f"+ {extra} more", font=font("medium", 17), fill=BLACK)
 
 
 # --------------------------------------------------------------------------
@@ -311,14 +293,9 @@ def draw_others_column(img, draw, view: RoomView):
 def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
     # optically centred in the body band rather than top-aligned, so the
     # free screen doesn't read as "content fell off the bottom"
-    y = BODY_TOP + 40
-    # Other free rooms are more useful at the door than a QR, so they take the column.
-    if view.others:
-        qr = None
-    qr_w = 152 if qr is not None else 0
+    y = BODY_TOP + (24 if view.others and view.next_event else 40)
+    qr_w = QR_BOX if qr is not None else 0
     text_r = CONTENT_R - (qr_w + 34 if qr is not None else 0)
-    if view.others:
-        text_r = CONTENT_R - OTHERS_W - 44
 
     size = fit_text(draw, "AVAILABLE", "black", text_r - CONTENT_L, 78, 48)
     draw.text((CONTENT_L, y), "AVAILABLE", font=font("black", size), fill=BLACK)
@@ -358,9 +335,18 @@ def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
             if lines:
                 draw.text((CONTENT_L + 14, y + 26), lines[0], font=f, fill=BLACK)
 
+    # Where else is free right now: one line under the booking info, left of the QR.
     if view.others:
-        draw_others_column(img, draw, view)
-    elif qr is not None:
+        f_o = font("regular", 20)
+        names = [f"{n} ({_until_short(u)})" for n, u in view.others[:OTHERS_MAX]]
+        while names:
+            line = "Also free  " + "  ·  ".join(names)
+            if _text_w(draw, line, f_o) <= text_r - CONTENT_L:
+                draw.text((CONTENT_L, BODY_BOTTOM - 30), line, font=f_o, fill=BLACK)
+                break
+            names.pop()
+
+    if qr is not None:
         qx = CONTENT_R - qr_w
         qy = BODY_TOP + 34
         img.paste(qr.resize((qr_w, qr_w), Image.NEAREST), (qx, qy))
@@ -374,7 +360,7 @@ def draw_free(img, draw, view: RoomView, qr: Optional[Image.Image]):
 
 def draw_closed(img, draw, view: RoomView, qr: Optional[Image.Image], opens: Optional[datetime]):
     y = BODY_TOP + 40
-    qr_w = 152 if qr is not None else 0
+    qr_w = QR_BOX if qr is not None else 0
     text_r = CONTENT_R - (qr_w + 34 if qr is not None else 0)
 
     size = fit_text(draw, "CLOSED", "black", text_r - CONTENT_L, 78, 48)
@@ -406,7 +392,7 @@ def draw_unknown(img, draw, view: RoomView, qr: Optional[Image.Image]):
     not the same as an empty one, and the screen has to say so.
     """
     y = BODY_TOP + 40
-    qr_w = 152 if qr is not None else 0
+    qr_w = QR_BOX if qr is not None else 0
     text_r = CONTENT_R - (qr_w + 34 if qr is not None else 0)
 
     size = fit_text(draw, "NO DATA", "black", text_r - CONTENT_L, 78, 48)
@@ -510,12 +496,22 @@ def draw_timeline(img, draw, view: RoomView, day_start: time, day_end: time, red
 # entry point
 # --------------------------------------------------------------------------
 
-def make_qr(url: str, box: int = 4) -> Image.Image:
-    qr = qrcode.QRCode(version=None, box_size=box, border=1,
+QR_BOX = 168
+
+
+def make_qr(url: str) -> Image.Image:
+    """QR scaled by a whole number of pixels per module, centred on a white
+    square. Fractional scaling smears module edges, which e-ink scanners hate."""
+    qr = qrcode.QRCode(version=None, box_size=1, border=1,
                        error_correction=qrcode.constants.ERROR_CORRECT_M)
     qr.add_data(url)
     qr.make(fit=True)
-    return qr.make_image(fill_color="black", back_color="white").convert("L")
+    base = qr.make_image(fill_color="black", back_color="white").convert("L")
+    k = max(1, QR_BOX // base.width)
+    scaled = base.resize((base.width * k, base.height * k), Image.NEAREST)
+    canvas = Image.new("L", (QR_BOX, QR_BOX), WHITE)
+    canvas.paste(scaled, ((QR_BOX - scaled.width) // 2, (QR_BOX - scaled.height) // 2))
+    return canvas
 
 
 def render(view: RoomView, *, logo: Optional[Image.Image] = None,

@@ -193,7 +193,7 @@ def image_endpoint(key: str, fmt: str):
     img = render(
         view,
         logo=logo(),
-        booking_url=CFG.booking_url(view.room),
+        booking_url=CFG.booking_url(view.room, view.now),
         day_start=CFG.day_start,
         day_end=CFG.day_end,
         redact_private=CFG.redact_private,
