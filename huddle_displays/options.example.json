@@ -27,52 +27,76 @@
   "logo_path": "/share/huddle/logo.png",
   "rooms": [
     {
-      "room_id": "main-conference",
-      "name": "Main Conference",
-      "calendar_entity": "calendar.room_main_conference",
-      "mailbox": "MainConferenceRoom1ea134ea1770977417432@lwyd.in",
+      "room_id": "canvas",
+      "name": "Canvas",
+      "calendar_entity": "calendar.room_canvas",
+      "mailbox": "canvas@lwyd.in",
       "panel_id": "panel-01",
       "capacity": 9
     },
     {
-      "room_id": "partners-mini",
-      "name": "Partners Mini Conference",
-      "calendar_entity": "calendar.room_partners_mini",
-      "mailbox": "MiniConferenceRoom09dc65201770977561411@lwyd.in",
+      "room_id": "big-room",
+      "name": "The Big Room",
+      "calendar_entity": "calendar.room_big_room",
+      "mailbox": "TheBigRoom@lwyd.in",
       "panel_id": "panel-02",
-      "capacity": 4
+      "capacity": 20
     },
     {
-      "room_id": "cs-conference",
-      "name": "CS Conference",
-      "calendar_entity": "calendar.room_cs_conference",
-      "mailbox": "G186ccb0852da457484c39276883186f3@lwyd.in",
+      "room_id": "margarita",
+      "name": "Margarita",
+      "calendar_entity": "calendar.room_margarita",
+      "mailbox": "Margarita@lwyd.in",
       "panel_id": "panel-03",
-      "capacity": 9
+      "capacity": 6
     },
     {
-      "room_id": "designers-conference",
-      "name": "Designers Conference",
-      "calendar_entity": "calendar.room_designers_conference",
-      "mailbox": "DesingersConferenceRoom3f7b64381770977851955@lwyd.in",
+      "room_id": "curacao",
+      "name": "Curaçao",
+      "calendar_entity": "calendar.room_curacao",
+      "mailbox": "Curacao@lwyd.in",
       "panel_id": "panel-04",
+      "capacity": 6
+    },
+    {
+      "room_id": "pixel",
+      "name": "Pixel",
+      "calendar_entity": "calendar.room_pixel",
+      "mailbox": "Pixel@lwyd.in",
+      "panel_id": "panel-05",
+      "capacity": 7
+    },
+    {
+      "room_id": "mimosa",
+      "name": "Mimosa",
+      "calendar_entity": "calendar.room_mimosa",
+      "mailbox": "Mimosa@lwyd.in",
+      "panel_id": "panel-06",
+      "capacity": 5
+    },
+    {
+      "room_id": "paloma",
+      "name": "Paloma",
+      "calendar_entity": "calendar.room_paloma",
+      "mailbox": "Paloma@lwyd.in",
+      "panel_id": "panel-07",
       "capacity": 4
     },
     {
-      "room_id": "pod-1",
-      "name": "One Person Pod 1",
-      "calendar_entity": "calendar.room_pod_1",
-      "mailbox": "OnePersonPod1d3bb96261770977911290@lwyd.in",
-      "panel_id": "panel-05",
-      "capacity": 1
+      "room_id": "tetris",
+      "name": "Tetris",
+      "calendar_entity": "calendar.room_tetris",
+      "mailbox": "Tetris@lwyd.in",
+      "panel_id": "panel-08",
+      "capacity": 4
     },
     {
-      "room_id": "pod-2",
-      "name": "One Person Pod 2",
-      "calendar_entity": "calendar.room_pod_2",
-      "mailbox": "OnePersonPod24581d57e1770977941487@lwyd.in",
-      "panel_id": "panel-06",
-      "capacity": 1
+      "room_id": "sketch",
+      "name": "Sketch",
+      "calendar_entity": "calendar.room_sketch",
+      "mailbox": "Sketch@lwyd.in",
+      "panel_id": "panel-09",
+      "capacity": 4
     }
   ]
 }
