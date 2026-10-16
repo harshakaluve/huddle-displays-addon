@@ -1,5 +1,5 @@
 name: Huddle Room Displays
-version: "1.0.8"
+version: "1.0.9"
 slug: huddle_displays
 description: Renders 800x480 1-bit room screens for XIAO ePaper panels and tells them when to wake up
 arch: [aarch64, amd64, armv7]
@@ -31,7 +31,7 @@ options:
   graph_tenant_id: ""
   graph_client_id: ""
   graph_client_secret: ""
-  booking_url_template: "https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&to={mailbox}&startdt={start}&enddt={end}"
+  booking_url_template: "https://huddle.lwyd.in/?book={mailbox}"
   logo_path: /share/huddle/logo.png
   rooms:
     - room_id: boardroom

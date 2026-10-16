@@ -13,14 +13,6 @@ from zoneinfo import ZoneInfo
 
 from .model import Room
 
-# Opens Outlook on the web with a new meeting already addressed to the room.
-# {start}/{end} are filled in at render time (next quarter hour, +30 min).
-OUTLOOK_COMPOSE = (
-    "https://outlook.office.com/calendar/0/deeplink/compose"
-    "?path=/calendar/action/compose&rru=addevent"
-    "&to={mailbox}&startdt={start}&enddt={end}"
-)
-
 DEFAULT_PATHS = ["/data/options.json", "options.json"]
 
 
@@ -52,7 +44,7 @@ class Settings:
     graph_client_id: str = ""
     graph_client_secret: str = ""
 
-    booking_url_template: str = OUTLOOK_COMPOSE
+    booking_url_template: str = "https://huddle.lwyd.in/?book={mailbox}"
     logo_path: str = "/share/huddle/logo.png"
 
     @property
